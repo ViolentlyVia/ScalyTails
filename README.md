@@ -1,8 +1,3 @@
-Here is a complete README.md for your application based on the provided source code.
-
-ScalyTails
-ScalyTails is a modern Windows Presentation Foundation (WPF) graphical user interface (GUI) wrapper for the Tailscale command-line interface. It provides a user-friendly, responsive dashboard to manage your Tailnet connections, monitor peers, configure exit nodes, and utilize advanced features like Tailscale Serve and Funnel directly from your Windows desktop.
-
 🚀 Features
 Connection & Status Management: View your real-time backend state, active Tailnet name, client version, and local IP addresses. Easily connect or disconnect from Tailscale with a single click.
 
