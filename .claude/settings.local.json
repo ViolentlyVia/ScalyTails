@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(dotnet new sln --name ScalyTails --output . --force)",
+      "PowerShell(dotnet new wpf --name ScalyTails --output ScalyTails --framework net8.0-windows --force)",
+      "PowerShell(dotnet sln ScalyTails.sln add ScalyTails/ScalyTails.csproj)",
+      "PowerShell(dotnet build \"C:\\\\Users\\\\Via\\\\OneDrive\\\\CodingFiles\\\\GitHub\\\\ScalyTails\\\\ScalyTails\\\\ScalyTails.csproj\" 2>&1)",
+      "PowerShell(Stop-Process -Id 72964 -Force -ErrorAction SilentlyContinue)",
+      "PowerShell(dotnet build \"C:\\\\Users\\\\Via\\\\OneDrive\\\\CodingFiles\\\\GitHub\\\\ScalyTails\\\\ScalyTails\\\\ScalyTails.csproj\" -c Debug --nologo -v quiet 2>&1)",
+      "PowerShell(Start-Process \"C:\\\\Users\\\\Via\\\\OneDrive\\\\CodingFiles\\\\GitHub\\\\ScalyTails\\\\ScalyTails\\\\bin\\\\Debug\\\\net8.0-windows\\\\ScalyTails.exe\")",
+      "WebFetch(domain:tailscale.com)",
+      "WebFetch(domain:login.tailscale.com)",
+      "WebFetch(domain:raw.githubusercontent.com)"
+    ]
+  }
+}

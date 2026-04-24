@@ -1,0 +1,168 @@
+<UserControl x:Class="ScalyTails.Views.PeersPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:converters="clr-namespace:ScalyTails.Converters"
+             xmlns:vm="clr-namespace:ScalyTails.ViewModels">
+
+    <UserControl.Resources>
+        <converters:BoolToColorConverter x:Key="OnlineBrush"
+            TrueColor="#FF4CAF50" FalseColor="#FF616161"/>
+        <converters:BytesConverter x:Key="Bytes"/>
+        <converters:BoolToVisibilityConverter x:Key="VisibleWhenTrue"/>
+        <converters:BoolToStringConverter x:Key="ConnectionType"
+            TrueValue="Direct" FalseValue="Relayed"/>
+    </UserControl.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="8,8,8,12">
+            <materialDesign:PackIcon Kind="AccountMultiple" Width="24" Height="24"
+                                     VerticalAlignment="Center" Margin="0,0,10,0"
+                                     Foreground="{DynamicResource PrimaryHueMidBrush}"/>
+            <TextBlock Style="{StaticResource MaterialDesignHeadline6TextBlock}"
+                       VerticalAlignment="Center">
+                <TextBlock.Text>
+                    <MultiBinding StringFormat="Peers ({0} online)">
+                        <Binding Path="OnlinePeerCount"/>
+                    </MultiBinding>
+                </TextBlock.Text>
+            </TextBlock>
+        </StackPanel>
+
+        <!-- Peers DataGrid -->
+        <DataGrid Grid.Row="1"
+                  ItemsSource="{Binding Peers}"
+                  AutoGenerateColumns="False"
+                  IsReadOnly="True"
+                  CanUserReorderColumns="True"
+                  CanUserResizeColumns="True"
+                  CanUserSortColumns="True"
+                  SelectionMode="Single"
+                  materialDesign:DataGridAssist.CellPadding="12 8 12 8"
+                  materialDesign:DataGridAssist.ColumnHeaderPadding="12 8 12 8"
+                  Style="{StaticResource MaterialDesignDataGrid}">
+
+            <DataGrid.Columns>
+
+                <!-- Status dot -->
+                <DataGridTemplateColumn Header="" Width="36" CanUserSort="True"
+                                        SortMemberPath="Online">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate DataType="{x:Type vm:PeerViewModel}">
+                            <Ellipse Width="10" Height="10" HorizontalAlignment="Center"
+                                     Fill="{Binding Online, Converter={StaticResource OnlineBrush}}"
+                                     ToolTip="{Binding Online, Converter={StaticResource ResourceKey=ConnectionType}}"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+                <!-- OS Icon -->
+                <DataGridTemplateColumn Header="OS" Width="44">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate DataType="{x:Type vm:PeerViewModel}">
+                            <materialDesign:PackIcon Kind="{Binding OsIcon}" Width="20" Height="20"
+                                                     HorizontalAlignment="Center"
+                                                     Foreground="{DynamicResource MaterialDesignBody}"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+                <!-- Hostname + Tags -->
+                <DataGridTemplateColumn Header="Name" Width="*" SortMemberPath="DisplayName">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate DataType="{x:Type vm:PeerViewModel}">
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="{Binding DisplayName}" FontWeight="Medium"
+                                           Style="{StaticResource MaterialDesignBody2TextBlock}"/>
+                                <TextBlock Text="{Binding TagsDisplay}" FontSize="11"
+                                           Foreground="{DynamicResource PrimaryHueMidBrush}"
+                                           Visibility="{Binding HasTags, Converter={StaticResource VisibleWhenTrue}}"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+                <!-- IP -->
+                <DataGridTextColumn Header="IP Address" Binding="{Binding PrimaryIP}"
+                                    Width="140" FontFamily="Consolas"/>
+
+                <!-- DNS Name -->
+                <DataGridTextColumn Header="DNS Name" Binding="{Binding DnsName}"
+                                    Width="*"/>
+
+                <!-- Connection -->
+                <DataGridTemplateColumn Header="Connection" Width="90">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate DataType="{x:Type vm:PeerViewModel}">
+                            <TextBlock Text="{Binding Relay}" FontSize="12"
+                                       Foreground="{DynamicResource MaterialDesignBodyLight}"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+                <!-- Traffic -->
+                <DataGridTemplateColumn Header="↓ / ↑" Width="160">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate DataType="{x:Type vm:PeerViewModel}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding RxBytes, Converter={StaticResource Bytes}}"
+                                           FontSize="12" Foreground="{DynamicResource MaterialDesignBodyLight}"/>
+                                <TextBlock Text=" / " FontSize="12"
+                                           Foreground="{DynamicResource MaterialDesignBodyLight}"/>
+                                <TextBlock Text="{Binding TxBytes, Converter={StaticResource Bytes}}"
+                                           FontSize="12" Foreground="{DynamicResource MaterialDesignBodyLight}"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+                <!-- Exit Node badge -->
+                <DataGridTemplateColumn Header="Exit Node" Width="80">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate DataType="{x:Type vm:PeerViewModel}">
+                            <materialDesign:Chip Content="Exit" IsEnabled="False"
+                                                 Visibility="{Binding ExitNode, Converter={StaticResource VisibleWhenTrue}}"
+                                                 FontSize="11"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+                <!-- Last Seen -->
+                <DataGridTextColumn Header="Last Seen" Binding="{Binding LastSeen}"
+                                    Width="120" FontSize="12"
+                                    ElementStyle="{StaticResource MaterialDesignDataGridTextColumnStyle}"/>
+
+                <!-- Actions: SSH + Send File -->
+                <DataGridTemplateColumn Header="Actions" Width="90">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate DataType="{x:Type vm:PeerViewModel}">
+                            <StackPanel Orientation="Horizontal">
+                                <Button Style="{StaticResource MaterialDesignIconButton}"
+                                        Width="32" Height="32" Padding="0"
+                                        ToolTip="Open SSH session"
+                                        Tag="{Binding}"
+                                        Click="SshButton_Click">
+                                    <materialDesign:PackIcon Kind="Console" Width="16" Height="16"/>
+                                </Button>
+                                <Button Style="{StaticResource MaterialDesignIconButton}"
+                                        Width="32" Height="32" Padding="0"
+                                        ToolTip="Send file via Taildrop"
+                                        Tag="{Binding}"
+                                        Click="SendFileButton_Click">
+                                    <materialDesign:PackIcon Kind="FileSend" Width="16" Height="16"/>
+                                </Button>
+                            </StackPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+            </DataGrid.Columns>
+        </DataGrid>
+    </Grid>
+</UserControl>
