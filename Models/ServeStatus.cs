@@ -17,6 +17,8 @@ public class ServeStatus
         (TCP is null || TCP.Count == 0) &&
         (Web is null || Web.Count == 0);
 
+    // Flattens the nested Web/TCP dictionaries returned by "tailscale serve status --json"
+    // into a flat list suitable for data-binding in the Serve page.
     public IReadOnlyList<ServeEntry> ToEntries()
     {
         var entries = new List<ServeEntry>();
@@ -25,6 +27,8 @@ public class ServeStatus
         {
             foreach (var (hostPort, webConfig) in Web)
             {
+                // Tailscale formats Web keys as "hostname:port"; fall back to 443 when
+                // no colon is present (older CLI versions omit it for the default HTTPS port).
                 var port = hostPort.Contains(':')
                     ? hostPort[(hostPort.LastIndexOf(':') + 1)..]
                     : "443";

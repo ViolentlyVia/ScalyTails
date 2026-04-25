@@ -37,7 +37,8 @@ public partial class TailDriveViewModel : ObservableObject
                         Shares.Add(new DriveShareEntry(parts[0].Trim(), parts[1].Trim()));
                     else if (parts.Length == 1)
                     {
-                        // "drive list" output isn't guaranteed tab-delimited; fall back to double-space
+                        // "tailscale drive list" output format varies between CLI versions —
+                        // some use tabs, others use two-space separation.
                         var segments = line.Trim().Split(new[] { "  " }, 2, StringSplitOptions.RemoveEmptyEntries);
                         if (segments.Length >= 2)
                             Shares.Add(new DriveShareEntry(segments[0].Trim(), segments[1].Trim()));

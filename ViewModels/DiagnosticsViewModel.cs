@@ -24,9 +24,19 @@ public partial class DiagnosticsViewModel : ObservableObject
     [ObservableProperty] private ObservableCollection<DerpLatency> _derpLatencies = [];
 
     // Ping
+    [ObservableProperty] private ObservableCollection<TailscalePeer> _peers = [];
+    [ObservableProperty] private TailscalePeer? _selectedPeer;
     [ObservableProperty] private string _pingTarget = "";
     [ObservableProperty] private string _pingOutput = "";
     [ObservableProperty] private bool _isPinging;
+
+    // CommunityToolkit.Mvvm auto-generates the SelectedPeer property setter and calls this
+    // partial method after the value changes, so the TextBox below always reflects the selection.
+    partial void OnSelectedPeerChanged(TailscalePeer? value)
+    {
+        if (value is not null)
+            PingTarget = value.PrimaryIP;
+    }
 
     // Whois
     [ObservableProperty] private string _whoisTarget = "";
@@ -45,6 +55,19 @@ public partial class DiagnosticsViewModel : ObservableObject
     public DiagnosticsViewModel(ITailscaleService tailscale)
     {
         _tailscale = tailscale;
+        // Fire-and-forget: async constructors aren't possible; discard warns the compiler the
+        // omission is intentional rather than a forgotten await.
+        _ = RefreshPeersAsync();
+    }
+
+    [RelayCommand]
+    private async Task RefreshPeersAsync()
+    {
+        var status = await _tailscale.GetStatusAsync();
+        Peers.Clear();
+        if (status is null) return;
+        foreach (var peer in status.AllPeers.OrderBy(p => p.DisplayName))
+            Peers.Add(peer);
     }
 
     [RelayCommand]

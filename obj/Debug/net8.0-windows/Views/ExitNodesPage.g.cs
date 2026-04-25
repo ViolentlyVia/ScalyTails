@@ -57,7 +57,7 @@ namespace ScalyTails.Views {
                 return;
             }
             _contentLoaded = true;
-            System.Uri resourceLocater = new System.Uri("/ScalyTails;component/views/exitnodespage.xaml", System.UriKind.Relative);
+            System.Uri resourceLocater = new System.Uri("/ScalyTails;V1.0.0.0;component/views/exitnodespage.xaml", System.UriKind.Relative);
             
             #line 1 "..\..\..\..\Views\ExitNodesPage.xaml"
             System.Windows.Application.LoadComponent(this, resourceLocater);

@@ -30,9 +30,11 @@ public partial class UsersViewModel : ObservableObject, IApiKeyAware
         IsBusy = true;
         try
         {
-            var list = await _api.GetUsersAsync(ct);
+            var result = await _api.GetUsersAsync(ct);
+            if (!result.Success) { StatusMessage = $"Failed to load users: {result.Error}"; return; }
+
             Users.Clear();
-            foreach (var u in (list?.Users ?? []).OrderByDescending(u => u.CurrentlyConnected).ThenBy(u => u.LoginName))
+            foreach (var u in (result.Data?.Users ?? []).OrderByDescending(u => u.CurrentlyConnected).ThenBy(u => u.LoginName))
                 Users.Add(u);
             IsLoaded = true;
             StatusMessage = "";

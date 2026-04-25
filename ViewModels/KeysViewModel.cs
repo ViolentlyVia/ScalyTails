@@ -37,9 +37,11 @@ public partial class KeysViewModel : ObservableObject, IApiKeyAware
         IsBusy = true;
         try
         {
-            var list = await _api.GetKeysAsync(ct);
+            var result = await _api.GetKeysAsync(ct);
+            if (!result.Success) { StatusMessage = $"Failed to load keys: {result.Error}"; return; }
+
             Keys.Clear();
-            foreach (var k in (list?.Keys ?? []).OrderByDescending(k => k.Created))
+            foreach (var k in (result.Data?.Keys ?? []).OrderByDescending(k => k.Created))
                 Keys.Add(k);
             IsLoaded = true;
             StatusMessage = "";
@@ -63,22 +65,22 @@ public partial class KeysViewModel : ObservableObject, IApiKeyAware
                     {
                         Create = new ApiKeyCreateParams
                         {
-                            Reusable = NewKeyReusable,
-                            Ephemeral = NewKeyEphemeral,
+                            Reusable      = NewKeyReusable,
+                            Ephemeral     = NewKeyEphemeral,
                             Preauthorized = NewKeyPreauthorized,
                         }
                     }
                 }
             };
 
-            var key = await _api.CreateKeyAsync(request);
-            if (key is null)
+            var result = await _api.CreateKeyAsync(request);
+            if (!result.Success)
             {
-                StatusMessage = "Failed to create key.";
+                StatusMessage = $"Failed to create key: {result.Error}";
                 return;
             }
 
-            CreatedKeyValue = key.Key;
+            CreatedKeyValue = result.Data?.Key ?? "";
             StatusMessage = "Key created. Copy it now — it won't be shown again.";
             NewKeyDescription = "";
             await RefreshAsync();

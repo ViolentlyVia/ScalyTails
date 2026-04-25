@@ -227,7 +227,7 @@ public class TailscaleService : ITailscaleService
         RunAsync("netcheck --format json", ct);
 
     public Task<CliResult> PingAsync(string host, int count = 3, CancellationToken ct = default) =>
-        RunAsync($"ping --c {count} --timeout 5s {host}", ct);
+        RunAsync($"ping -c {count} --timeout 3s {host}", ct);
 
     public Task<CliResult> WhoisAsync(string ip, CancellationToken ct = default) =>
         RunAsync($"whois {ip}", ct);

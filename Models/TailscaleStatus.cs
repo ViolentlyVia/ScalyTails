@@ -31,11 +31,13 @@ public class TailscaleStatus
     [JsonPropertyName("CertDomains")]
     public List<string>? CertDomains { get; set; }
 
-    // "Starting" is included so the UI treats the brief connecting phase as running
+    // "Starting" is treated as running so the UI shows a connected state during the
+    // brief transition period rather than flickering to "Disconnected".
     public bool IsRunning => BackendState is "Running" or "Starting";
     public bool NeedsLogin => BackendState == "NeedsLogin";
 
-    // Peer dict is absent (not just empty) when disconnected, so ?? guards null
+    // The Peer dictionary is entirely absent (not just empty) when Tailscale is
+    // disconnected, so the null-coalescing guard is load-bearing.
     public IEnumerable<TailscalePeer> AllPeers =>
         Peer?.Values ?? Enumerable.Empty<TailscalePeer>();
 
@@ -126,6 +128,7 @@ public class TailscalePeer
     public string PrimaryIP => TailscaleIPs?.FirstOrDefault() ?? "";
     public string ShortDNS => DNSName.TrimEnd('.');
     public string DisplayName => string.IsNullOrEmpty(HostName) ? ShortDNS : HostName;
+    public string PingDisplayName => PrimaryIP.Length > 0 ? $"{DisplayName}  —  {PrimaryIP}" : DisplayName;
 }
 
 public class TailnetInfo

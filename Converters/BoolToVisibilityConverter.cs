@@ -11,7 +11,17 @@ public class BoolToVisibilityConverter : IValueConverter
 
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        var visible = value is true;
+        // Handles three binding shapes used in XAML:
+        //   bool   — direct flag (most common)
+        //   int    — string.Length bindings like {Binding SomeText.Length}
+        //   string — direct string comparison for emptiness
+        var visible = value switch
+        {
+            bool b   => b,
+            int  n   => n != 0,
+            string s => s.Length != 0,
+            _        => value is not null,
+        };
         if (Invert) visible = !visible;
         return visible ? Visibility.Visible : Visibility.Collapsed;
     }

@@ -33,23 +33,40 @@ public class TailscaleApiService : ITailscaleApiService
     private HttpRequestMessage BuildRequest(HttpMethod method, string path, object? body = null)
     {
         var request = new HttpRequestMessage(method, $"{BaseUrl}{path}");
+        // Tailscale API uses HTTP Basic auth: key as username, empty password (matches the official Go client)
         // Auth header set per-request so a key change in Settings takes effect immediately
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _settings.Settings.ApiKey);
+        var creds = Convert.ToBase64String(Encoding.ASCII.GetBytes(_settings.Settings.ApiKey + ":"));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Basic", creds);
         if (body != null)
             request.Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
         return request;
     }
 
-    private async Task<T?> GetAsync<T>(string path, CancellationToken ct) where T : class
+    private async Task<ApiResult<T>> GetAsync<T>(string path, CancellationToken ct) where T : class
     {
         try
         {
             using var request = BuildRequest(HttpMethod.Get, path);
             using var response = await _http.SendAsync(request, ct);
-            if (!response.IsSuccessStatusCode) return null;
-            return await response.Content.ReadFromJsonAsync<T>(JsonOpts, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync(ct);
+                var hint = (int)response.StatusCode switch
+                {
+                    401 => " — invalid or expired API key",
+                    403 => " — API key lacks permission, or this feature requires a higher plan",
+                    404 => " — endpoint not found; check tailnet name in Settings",
+                    _   => ""
+                };
+                return ApiResult<T>.Fail($"HTTP {(int)response.StatusCode}{hint}");
+            }
+            var data = await response.Content.ReadFromJsonAsync<T>(JsonOpts, ct);
+            if (data is null)
+                return ApiResult<T>.Fail("API returned an empty response");
+            return ApiResult<T>.Ok(data);
         }
-        catch { return null; }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex) { return ApiResult<T>.Fail(ex.Message); }
     }
 
     private async Task<bool> SendAsync(HttpMethod method, string path, object? body = null, CancellationToken ct = default)
@@ -65,10 +82,10 @@ public class TailscaleApiService : ITailscaleApiService
 
     // ── Devices ────────────────────────────────────────────────────────────────
 
-    public Task<ApiDeviceList?> GetDevicesAsync(CancellationToken ct = default) =>
+    public Task<ApiResult<ApiDeviceList>> GetDevicesAsync(CancellationToken ct = default) =>
         GetAsync<ApiDeviceList>($"/tailnet/{Tailnet}/devices", ct);
 
-    public Task<ApiDevice?> GetDeviceAsync(string deviceId, CancellationToken ct = default) =>
+    public Task<ApiResult<ApiDevice>> GetDeviceAsync(string deviceId, CancellationToken ct = default) =>
         GetAsync<ApiDevice>($"/device/{deviceId}", ct);
 
     public Task<bool> AuthorizeDeviceAsync(string deviceId, bool authorized, CancellationToken ct = default) =>
@@ -90,26 +107,26 @@ public class TailscaleApiService : ITailscaleApiService
 
     // ── Users ──────────────────────────────────────────────────────────────────
 
-    public Task<ApiUserList?> GetUsersAsync(CancellationToken ct = default) =>
+    public Task<ApiResult<ApiUserList>> GetUsersAsync(CancellationToken ct = default) =>
         GetAsync<ApiUserList>($"/tailnet/{Tailnet}/users", ct);
 
     // ── DNS ────────────────────────────────────────────────────────────────────
 
-    public Task<ApiDnsNameservers?> GetNameserversAsync(CancellationToken ct = default) =>
+    public Task<ApiResult<ApiDnsNameservers>> GetNameserversAsync(CancellationToken ct = default) =>
         GetAsync<ApiDnsNameservers>($"/tailnet/{Tailnet}/dns/nameservers", ct);
 
     public Task<bool> SetNameserversAsync(List<string> nameservers, CancellationToken ct = default) =>
         SendAsync(HttpMethod.Post, $"/tailnet/{Tailnet}/dns/nameservers",
             new { dns = nameservers }, ct);
 
-    public Task<ApiDnsSearchPaths?> GetSearchPathsAsync(CancellationToken ct = default) =>
+    public Task<ApiResult<ApiDnsSearchPaths>> GetSearchPathsAsync(CancellationToken ct = default) =>
         GetAsync<ApiDnsSearchPaths>($"/tailnet/{Tailnet}/dns/searchpaths", ct);
 
     public Task<bool> SetSearchPathsAsync(List<string> searchPaths, CancellationToken ct = default) =>
         SendAsync(HttpMethod.Post, $"/tailnet/{Tailnet}/dns/searchpaths",
             new { searchPaths }, ct);
 
-    public Task<ApiDnsPreferences?> GetDnsPreferencesAsync(CancellationToken ct = default) =>
+    public Task<ApiResult<ApiDnsPreferences>> GetDnsPreferencesAsync(CancellationToken ct = default) =>
         GetAsync<ApiDnsPreferences>($"/tailnet/{Tailnet}/dns/preferences", ct);
 
     public Task<bool> SetMagicDnsAsync(bool enabled, CancellationToken ct = default) =>
@@ -118,7 +135,7 @@ public class TailscaleApiService : ITailscaleApiService
 
     // ── Policy / ACL ───────────────────────────────────────────────────────────
 
-    public async Task<string?> GetPolicyAsync(CancellationToken ct = default)
+    public async Task<ApiResult<string>> GetPolicyAsync(CancellationToken ct = default)
     {
         try
         {
@@ -127,10 +144,13 @@ public class TailscaleApiService : ITailscaleApiService
             request.Headers.Accept.Clear();
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             using var response = await _http.SendAsync(request, ct);
-            if (!response.IsSuccessStatusCode) return null;
-            return await response.Content.ReadAsStringAsync(ct);
+            if (!response.IsSuccessStatusCode)
+                return ApiResult<string>.Fail($"HTTP {(int)response.StatusCode}");
+            var text = await response.Content.ReadAsStringAsync(ct);
+            return ApiResult<string>.Ok(text);
         }
-        catch { return null; }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex) { return ApiResult<string>.Fail(ex.Message); }
     }
 
     public async Task<bool> SetPolicyAsync(string policyJson, CancellationToken ct = default)
@@ -147,28 +167,35 @@ public class TailscaleApiService : ITailscaleApiService
 
     // ── Logs ───────────────────────────────────────────────────────────────────
 
-    public async Task<ApiNetworkLogList?> GetNetworkLogsAsync(DateTime? start = null, CancellationToken ct = default)
+    public Task<ApiResult<ApiNetworkLogList>> GetNetworkLogsAsync(DateTime? start = null, CancellationToken ct = default)
     {
-        var startParam = (start ?? DateTime.UtcNow.AddHours(-24)).ToString("o");
-        return await GetAsync<ApiNetworkLogList>(
+        var startParam = (start ?? DateTime.UtcNow.AddHours(-24))
+            .ToUniversalTime()
+            .ToString("yyyy-MM-ddTHH:mm:ssZ");
+        return GetAsync<ApiNetworkLogList>(
             $"/tailnet/{Tailnet}/logs/network?start={Uri.EscapeDataString(startParam)}", ct);
     }
 
     // ── Auth Keys ──────────────────────────────────────────────────────────────
 
-    public Task<ApiKeyList?> GetKeysAsync(CancellationToken ct = default) =>
+    public Task<ApiResult<ApiKeyList>> GetKeysAsync(CancellationToken ct = default) =>
         GetAsync<ApiKeyList>($"/tailnet/{Tailnet}/keys", ct);
 
-    public async Task<ApiAuthKey?> CreateKeyAsync(CreateKeyRequest request, CancellationToken ct = default)
+    public async Task<ApiResult<ApiAuthKey>> CreateKeyAsync(CreateKeyRequest request, CancellationToken ct = default)
     {
         try
         {
             using var req = BuildRequest(HttpMethod.Post, $"/tailnet/{Tailnet}/keys", request);
             using var response = await _http.SendAsync(req, ct);
-            if (!response.IsSuccessStatusCode) return null;
-            return await response.Content.ReadFromJsonAsync<ApiAuthKey>(JsonOpts, ct);
+            if (!response.IsSuccessStatusCode)
+                return ApiResult<ApiAuthKey>.Fail($"HTTP {(int)response.StatusCode}");
+            var key = await response.Content.ReadFromJsonAsync<ApiAuthKey>(JsonOpts, ct);
+            if (key is null)
+                return ApiResult<ApiAuthKey>.Fail("API returned an empty response");
+            return ApiResult<ApiAuthKey>.Ok(key);
         }
-        catch { return null; }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex) { return ApiResult<ApiAuthKey>.Fail(ex.Message); }
     }
 
     public Task<bool> DeleteKeyAsync(string keyId, CancellationToken ct = default) =>

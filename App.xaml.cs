@@ -18,6 +18,9 @@ public partial class App : System.Windows.Application
         // Suppress noisy MaterialDesign resource-lookup warnings from the debug output
         PresentationTraceSources.ResourceDictionarySource.Switch.Level = SourceLevels.Critical;
 
+        // Services are constructed here (not in a DI container) and passed down manually.
+        // TailscaleApiService receives the settings service so it can read the API key
+        // on every request — key changes in Settings take effect immediately without restart.
         var cliService      = new TailscaleService();
         var settingsService = new AppSettingsService();
         var apiService      = new TailscaleApiService(settingsService);
@@ -48,6 +51,7 @@ public partial class App : System.Windows.Application
         var exitItem = new ToolStripMenuItem("Exit");
         exitItem.Click += (_, _) =>
         {
+            // ExitApplication sets _closeToTray=false so Window_Closing doesn't re-intercept
             _mainWindow?.ExitApplication();
             _trayIcon?.Dispose();
             Shutdown();

@@ -25,6 +25,8 @@ public class AppSettingsService : IAppSettingsService
             Settings = JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
         }
         catch { }
+        // Silently swallow: a missing or corrupted settings file falls back to defaults
+        // rather than crashing on startup. The user can re-enter their key in Settings.
     }
 
     public void Save()
@@ -35,5 +37,6 @@ public class AppSettingsService : IAppSettingsService
             File.WriteAllText(SettingsPath, JsonSerializer.Serialize(Settings, new JsonSerializerOptions { WriteIndented = true }));
         }
         catch { }
+        // Silently swallow: a disk write failure (permissions, full disk) is not fatal.
     }
 }

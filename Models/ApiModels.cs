@@ -71,7 +71,8 @@ public class ApiDevice
 
     public string PrimaryAddress => Addresses.FirstOrDefault() ?? "";
     public string ShortName => Hostname.Length > 0 ? Hostname : Name.Split('.').FirstOrDefault() ?? Name;
-    // Tailscale mandates the "tag:" prefix in ACL policy, but it's noise in the UI
+    // ACL tags are stored with a mandatory "tag:" prefix in the API response, but
+    // showing "tag:server" vs "server" in the UI is redundant noise.
     public string TagsDisplay => Tags is { Count: > 0 }
         ? string.Join(", ", Tags.Select(t => t.StartsWith("tag:") ? t[4..] : t))
         : "";
@@ -279,8 +280,10 @@ public class CreateKeyRequest
     [JsonPropertyName("capabilities")]
     public ApiKeyCapabilities Capabilities { get; set; } = new();
 
+    // 90 days (7,776,000 s) is the maximum the Tailscale API accepts for auth key expiry.
+    // Sending a larger value returns HTTP 400.
     [JsonPropertyName("expirySeconds")]
-    public int ExpirySeconds { get; set; } = 7776000; // 90 days — Tailscale API maximum
+    public int ExpirySeconds { get; set; } = 7776000;
 
     [JsonPropertyName("description")]
     public string Description { get; set; } = "";

@@ -126,6 +126,25 @@
             <TextBlock Text="PING PEER" Style="{StaticResource MaterialDesignOverlineTextBlock}" Margin="0,0,0,8"/>
             <materialDesign:Card Padding="16" Margin="0,0,0,16">
                 <StackPanel>
+                    <!-- Peer picker -->
+                    <Grid Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <ComboBox Grid.Column="0" Margin="0,0,8,0"
+                                  materialDesign:HintAssist.Hint="Select peer (or type below)"
+                                  Style="{StaticResource MaterialDesignOutlinedComboBox}"
+                                  ItemsSource="{Binding Peers}"
+                                  SelectedItem="{Binding SelectedPeer}"
+                                  DisplayMemberPath="PingDisplayName"/>
+                        <Button Grid.Column="1" Command="{Binding RefreshPeersCommand}"
+                                Style="{StaticResource MaterialDesignIconButton}"
+                                Width="36" Height="36" ToolTip="Refresh peer list">
+                            <materialDesign:PackIcon Kind="Refresh" Width="18" Height="18"/>
+                        </Button>
+                    </Grid>
+                    <!-- Manual target + ping -->
                     <Grid Margin="0,0,0,12">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>

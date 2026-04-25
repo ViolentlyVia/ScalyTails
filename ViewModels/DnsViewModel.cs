@@ -34,20 +34,33 @@ public partial class DnsViewModel : ObservableObject, IApiKeyAware
         try
         {
             // Fire all three requests in parallel to minimize page-load latency
-            var nsTask = _api.GetNameserversAsync(ct);
-            var spTask = _api.GetSearchPathsAsync(ct);
+            var nsTask   = _api.GetNameserversAsync(ct);
+            var spTask   = _api.GetSearchPathsAsync(ct);
             var prefTask = _api.GetDnsPreferencesAsync(ct);
             await Task.WhenAll(nsTask, spTask, prefTask);
 
+            var nsResult   = await nsTask;
+            var spResult   = await spTask;
+            var prefResult = await prefTask;
+
+            if (!nsResult.Success || !spResult.Success || !prefResult.Success)
+            {
+                var error = (!nsResult.Success   ? nsResult.Error :
+                             !spResult.Success   ? spResult.Error :
+                                                   prefResult.Error);
+                StatusMessage = $"Failed to load DNS settings: {error}";
+                return;
+            }
+
             Nameservers.Clear();
-            foreach (var ns in (await nsTask)?.Dns ?? [])
+            foreach (var ns in nsResult.Data?.Dns ?? [])
                 Nameservers.Add(ns);
 
             SearchPaths.Clear();
-            foreach (var sp in (await spTask)?.SearchPaths ?? [])
+            foreach (var sp in spResult.Data?.SearchPaths ?? [])
                 SearchPaths.Add(sp);
 
-            MagicDnsEnabled = (await prefTask)?.MagicDNS ?? false;
+            MagicDnsEnabled = prefResult.Data?.MagicDNS ?? false;
             IsLoaded = true;
             StatusMessage = "";
         }

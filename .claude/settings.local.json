@@ -12,7 +12,10 @@
       "WebFetch(domain:login.tailscale.com)",
       "WebFetch(domain:raw.githubusercontent.com)",
       "Bash(dotnet build *)",
-      "Bash(taskkill /F /IM ScalyTails.exe)"
+      "Bash(taskkill /F /IM ScalyTails.exe)",
+      "Read(//c/Program Files \\(x86\\)/Inno Setup 6/**)",
+      "Read(//c/Program Files/Inno Setup 6/**)",
+      "WebFetch(domain:github.com)"
     ]
   }
 }

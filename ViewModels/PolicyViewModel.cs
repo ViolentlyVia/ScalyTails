@@ -17,6 +17,8 @@ public partial class PolicyViewModel : ObservableObject, IApiKeyAware
     public bool HasApiKey => _api.IsConfigured;
     public void OnApiKeyChanged() => OnPropertyChanged(nameof(HasApiKey));
 
+    // Snapshot of the last successfully loaded/saved text — used to detect unsaved edits.
+    // IsDirty drives the Save/Revert button visibility in the XAML.
     private string _savedText = "";
 
     public PolicyViewModel(ITailscaleApiService api)
@@ -34,8 +36,10 @@ public partial class PolicyViewModel : ObservableObject, IApiKeyAware
         IsBusy = true;
         try
         {
-            var policy = await _api.GetPolicyAsync(ct);
-            if (policy is null) { StatusMessage = "Failed to load policy."; return; }
+            var result = await _api.GetPolicyAsync(ct);
+            if (!result.Success) { StatusMessage = $"Failed to load policy: {result.Error}"; return; }
+
+            var policy = result.Data ?? "";
 
             // Pretty-print if valid JSON
             try
@@ -58,7 +62,7 @@ public partial class PolicyViewModel : ObservableObject, IApiKeyAware
     private async Task SavePolicyAsync()
     {
         IsBusy = true;
-        StatusMessage = "Saving policy…";
+        StatusMessage = "Saving policy...";
         try
         {
             var ok = await _api.SetPolicyAsync(PolicyText);

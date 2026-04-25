@@ -51,8 +51,10 @@ public partial class DevicesAdminViewModel : ObservableObject, IApiKeyAware
         IsBusy = true;
         try
         {
-            var list = await _api.GetDevicesAsync(ct);
-            _allDevices = (list?.Devices ?? [])
+            var result = await _api.GetDevicesAsync(ct);
+            if (!result.Success) { StatusMessage = $"Failed to load devices: {result.Error}"; return; }
+
+            _allDevices = (result.Data?.Devices ?? [])
                 .OrderByDescending(d => d.LastSeen)
                 .ToList();
             ApplyFilter();

@@ -8,6 +8,8 @@ namespace ScalyTails;
 
 public partial class MainWindow : Window
 {
+    // Pages are pre-allocated so switching between them is instant and their state
+    // (scroll position, loaded data) persists for the session.
     private readonly OverviewPage _overviewPage = new();
     private readonly PeersPage _peersPage = new();
     private readonly ExitNodesPage _exitNodesPage = new();
@@ -84,6 +86,9 @@ public partial class MainWindow : Window
             _              => _overviewPage
         };
         PageHost.Content = page;
+        // Admin pages (DNS, Devices, Users, etc.) don't auto-load on startup — they
+        // wait until the user navigates to them. OnApiKeyChanged() re-evaluates HasApiKey
+        // so the "No API key" banner updates immediately when a key is saved in Settings.
         if (page is FrameworkElement { DataContext: IApiKeyAware aware })
             aware.OnApiKeyChanged();
     }
@@ -105,6 +110,7 @@ public partial class MainWindow : Window
 
     public void ExitApplication()
     {
+        // Disable the tray-minimize guard before closing so Window_Closing doesn't cancel it
         _closeToTray = false;
         if (DataContext is MainViewModel vm)
             vm.StopRefresh();
