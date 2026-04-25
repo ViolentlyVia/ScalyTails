@@ -5,7 +5,7 @@ using ScalyTails.Services;
 
 namespace ScalyTails.ViewModels;
 
-public partial class DnsViewModel : ObservableObject
+public partial class DnsViewModel : ObservableObject, IApiKeyAware
 {
     private readonly ITailscaleApiService _api;
 
@@ -19,6 +19,7 @@ public partial class DnsViewModel : ObservableObject
     [ObservableProperty] private string _newSearchPath = "";
 
     public bool HasApiKey => _api.IsConfigured;
+    public void OnApiKeyChanged() => OnPropertyChanged(nameof(HasApiKey));
 
     public DnsViewModel(ITailscaleApiService api)
     {
@@ -32,6 +33,7 @@ public partial class DnsViewModel : ObservableObject
         IsBusy = true;
         try
         {
+            // Fire all three requests in parallel to minimize page-load latency
             var nsTask = _api.GetNameserversAsync(ct);
             var spTask = _api.GetSearchPathsAsync(ct);
             var prefTask = _api.GetDnsPreferencesAsync(ct);

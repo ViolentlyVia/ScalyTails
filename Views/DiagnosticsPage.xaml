@@ -3,7 +3,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
              xmlns:converters="clr-namespace:ScalyTails.Converters"
-             xmlns:vm="clr-namespace:ScalyTails.ViewModels">
+             xmlns:vm="clr-namespace:ScalyTails.ViewModels"
+             xmlns:models="clr-namespace:ScalyTails.Models">
 
     <UserControl.Resources>
         <converters:BoolToVisibilityConverter x:Key="VisibleWhenTrue"/>
@@ -44,10 +45,6 @@
                             </StackPanel>
                         </Button>
                     </Grid>
-
-                    <Visibility>
-                        <Binding Path="NetCheckDone" Converter="{StaticResource VisibleWhenTrue}"/>
-                    </Visibility>
 
                     <StackPanel Visibility="{Binding NetCheckDone, Converter={StaticResource VisibleWhenTrue}}">
                         <UniformGrid Rows="1" Columns="3" Margin="0,0,0,16">
@@ -106,7 +103,7 @@
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
-                                <DataTemplate DataType="{x:Type vm:DerpLatency}">
+                                <DataTemplate DataType="{x:Type models:DerpLatency}">
                                     <Border Padding="10,6" Margin="0,0,8,8" CornerRadius="4"
                                             Background="{DynamicResource MaterialDesignDivider}">
                                         <StackPanel>

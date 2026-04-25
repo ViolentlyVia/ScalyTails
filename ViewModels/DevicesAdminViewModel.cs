@@ -6,7 +6,7 @@ using ScalyTails.Services;
 
 namespace ScalyTails.ViewModels;
 
-public partial class DevicesAdminViewModel : ObservableObject
+public partial class DevicesAdminViewModel : ObservableObject, IApiKeyAware
 {
     private readonly ITailscaleApiService _api;
 
@@ -18,7 +18,9 @@ public partial class DevicesAdminViewModel : ObservableObject
     [ObservableProperty] private string _filterText = "";
 
     public bool HasApiKey => _api.IsConfigured;
+    public void OnApiKeyChanged() => OnPropertyChanged(nameof(HasApiKey));
 
+    // Master list preserved so filtering never requires a re-fetch from the API
     private List<ApiDevice> _allDevices = [];
 
     public DevicesAdminViewModel(ITailscaleApiService api)

@@ -1,43 +1,101 @@
-🚀 Features
-Connection & Status Management: View your real-time backend state, active Tailnet name, client version, and local IP addresses. Easily connect or disconnect from Tailscale with a single click.
+# ScalyTails
 
-Peer Monitoring: See a list of all devices (peers) on your network, prioritized by online status.
+A full-featured Windows GUI for [Tailscale](https://tailscale.com), built with WPF and .NET 8. ScalyTails wraps the Tailscale CLI and REST API into a polished native application with a Material Design interface and system-tray integration.
 
-Quick SSH & Taildrop: Instantly launch an SSH session into any connected peer (supports Windows Terminal, PowerShell, and CMD) or securely send files directly to other devices using Taildrop.
+---
 
-Exit Node Configuration: Quickly view available exit nodes, route your traffic through a selected exit node, and optionally allow local LAN access while connected.
+## Features
 
-Subnet Routing: Easily add, remove, and apply advertised subnet routes (CIDR) and toggle route acceptance.
+### CLI-backed pages (no API key required)
 
-Tailscale Serve & Funnel: Easily expose local services and ports to your Tailnet (via HTTP/HTTPS) or the public internet (via HTTPS Funnel) with a simple UI.
+| Page | Description |
+| --- | --- |
+| **Overview** | Connection status, your Tailnet name, local IPs, client version. Connect/disconnect toggle. |
+| **Peers** | All devices on your network sorted by online status. One-click SSH and Taildrop file send. |
+| **Exit Nodes** | Browse and activate available exit nodes; toggle LAN access while routed. |
+| **Subnet Routes** | Add/remove advertised CIDR routes and toggle route acceptance from other devices. |
+| **Serve & Funnel** | Expose local services over HTTP, HTTPS, or public Funnel — with a live serve config table. |
+| **Diagnostics** | Run `netcheck` (UDP, IPv4/IPv6, NAT type, DERP latencies), ping, whois, bug report, and update check. |
+| **Taildrive** | Manage Taildrive shares: browse for a local folder, set a share name, and list active shares. |
+| **Settings** | Save your Tailscale API key and tailnet name. Switch between multiple logged-in accounts. |
 
-Advanced Settings Toggles: Enable or disable core Tailscale preferences on the fly, including:
+### API-backed pages (require a Tailscale API key)
 
-Shields Up
+| Page | Description |
+| --- | --- |
+| **DNS** | View and edit tailnet nameservers, search paths, and toggle MagicDNS. |
+| **Devices (Admin)** | Full device list with filter, per-device authorize/expire key/delete actions. |
+| **Users** | Tailnet member roster with online indicator, role, status, and device count. |
+| **Policy** | View and edit your tailnet ACL/policy file in a built-in JSON editor with save/revert. |
+| **Logs** | Tail network logs for the last 1–168 hours with source and destination columns. |
+| **Keys** | Create reusable/ephemeral/preauthorized auth keys, copy the key value, and revoke existing keys. |
 
-MagicDNS / CorpDNS acceptance
+### Other
 
-SSH Server runtime
+- **System tray**: minimize to tray, double-click to restore, quick connect/disconnect from the tray menu.
+- **Auto-refresh**: status, peers, exit nodes, routes, and serve config refresh every 5 seconds automatically.
 
-Exit Node advertisement
+---
 
-System Tray Integration: Built with tray icon support for easy background access.
+## Prerequisites
 
-🛠️ Built With
-.NET 8.0 (Windows / WPF)
+- **Windows 10/11**
+- **[Tailscale for Windows](https://tailscale.com/download/windows)** installed (ScalyTails searches `Program Files` and falls back to `PATH`)
+- **[.NET 8.0 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0)**
 
-CommunityToolkit.Mvvm (v8.3.2) - For robust Model-View-ViewModel architecture and state management.
+---
 
-MaterialDesignThemes (v5.1.0) - For a sleek, modern UI.
+## Build
 
-Hardcodet.NotifyIcon.Wpf (v2.0.1) - For system tray icon capabilities.
+```sh
+git clone https://github.com/ViolentlyVia/ScalyTails
+cd ScalyTails
+dotnet build
+dotnet run
+```
 
-📋 Prerequisites
-To run ScalyTails, you will need the following installed on your Windows machine:
+Or open `ScalyTails.slnx` in Visual Studio 2022+ / Rider and run from there.
 
-Tailscale: The official Tailscale Windows client must be installed (ScalyTails automatically searches for tailscale.exe in your Program Files or Program Files (x86) directories).
+---
 
-.NET 8.0 Desktop Runtime: Required to execute the WPF application.
+## API key setup
 
-⚙️ How It Works
-ScalyTails acts as a frontend for the official Tailscale CLI. It uses a background timer that polls the Tailscale daemon every 5 seconds to fetch the latest network status, peer lists, active exit nodes, and local preferences. All actions taken in the UI (like adding a route or setting a Serve port) are translated into secure, invisible command-line calls to your local tailscale.exe process.
+Several pages (DNS, Devices, Users, Policy, Logs, Keys) call the [Tailscale REST API](https://tailscale.com/api) and require an API key:
+
+1. Go to **[tailscale.com/admin/settings/keys](https://login.tailscale.com/admin/settings/keys)** and generate a personal API key.
+2. Open ScalyTails → **Settings**.
+3. Paste the key into the **API Key** field.
+4. Set **Tailnet** to your tailnet name (e.g. `example.com`) — leave it as `-` to use the default tailnet for the authenticated key.
+5. Click **Save**.
+
+---
+
+## Architecture
+
+```text
+ScalyTails/
+├── Models/           # JSON-deserialization models for CLI output and REST API responses
+├── Services/
+│   ├── TailscaleService.cs      # Runs tailscale.exe subprocesses, returns CliResult
+│   ├── TailscaleApiService.cs   # HTTP client wrapper for api.tailscale.com/api/v2
+│   ├── AppSettingsService.cs    # Persists API key + tailnet to %APPDATA%\ScalyTails\settings.json
+│   └── IApiKeyAware.cs          # Interface for pages that need to react to API key changes
+├── ViewModels/       # CommunityToolkit.Mvvm ObservableObject + RelayCommand per page
+├── Views/            # WPF UserControl pages (.xaml + .xaml.cs)
+├── Converters/       # IValueConverter implementations for the UI
+├── App.xaml.cs       # Startup: wires services, creates MainWindow, sets up tray icon
+└── MainWindow.xaml.cs  # Shell: nav sidebar routing, page host, minimize-to-tray
+```
+
+All long-running operations are `async`/`await`. The main view model polls Tailscale status every 5 seconds using `PeriodicTimer` (which skips missed ticks, so a slow response won't queue up overlapping refreshes). Admin page view models are lazy — they only load when the user first opens the page and clicks **Load** (or whenever they navigate to the page after entering an API key).
+
+---
+
+## Tech stack
+
+| Package | Version | Purpose |
+| --- | --- | --- |
+| .NET 8.0 (WPF) | 8.0 | Framework |
+| CommunityToolkit.Mvvm | 8.3.2 | MVVM source generators (`[ObservableProperty]`, `[RelayCommand]`) |
+| MaterialDesignThemes | 5.1.0 | UI controls and icons (MDI icon set) |
+| Microsoft.Xaml.Behaviors.Wpf | 1.1.122 | XAML interaction triggers |

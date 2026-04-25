@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "EW1bbIQhqTY=",
+  "dgSpecHash": "bAl0pOQgLOE=",
   "success": true,
-  "projectFilePath": "C:\\Users\\Via\\OneDrive\\CodingFiles\\GitHub\\ScalyTails\\ScalyTails\\ScalyTails.csproj",
+  "projectFilePath": "C:\\Users\\Via\\OneDrive\\CodingFiles\\GitHub\\ScalyTails\\ScalyTails.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\Via\\.nuget\\packages\\communitytoolkit.mvvm\\8.3.2\\communitytoolkit.mvvm.8.3.2.nupkg.sha512",
     "C:\\Users\\Via\\.nuget\\packages\\hardcodet.notifyicon.wpf\\2.0.1\\hardcodet.notifyicon.wpf.2.0.1.nupkg.sha512",

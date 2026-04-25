@@ -69,6 +69,7 @@ public partial class MainViewModel : ObservableObject
         TailscaleInstalled = tailscale.IsTailscaleInstalled;
     }
 
+    // Fire-and-forget is intentional — async constructors aren't possible in WPF
     public void StartRefresh()
     {
         _cts = new CancellationTokenSource();
@@ -80,6 +81,7 @@ public partial class MainViewModel : ObservableObject
     private async Task RefreshLoopAsync(CancellationToken ct)
     {
         await RefreshAsync(ct);
+        // PeriodicTimer skips missed ticks, so a slow refresh won't queue up multiple overlapping calls
         _refreshTimer = new PeriodicTimer(TimeSpan.FromSeconds(5));
         try
         {
@@ -107,6 +109,7 @@ public partial class MainViewModel : ObservableObject
             var prefs = await prefsTask;
             var serve = await serveTask;
 
+            // Task.WhenAll continuations can run on a thread-pool thread; marshal back to UI for ObservableCollection writes
             await Application.Current.Dispatcher.InvokeAsync(() =>
                 ApplyStatus(status, prefs, serve));
         }
@@ -161,7 +164,7 @@ public partial class MainViewModel : ObservableObject
             Peers.Add(p);
         OnlinePeerCount = Peers.Count(p => p.Online);
 
-        // Exit nodes — always prepend the "None" sentinel
+        // Exit nodes — always prepend a "None" sentinel so SelectedExitNode is never null
         var activeExitPeer = status.ActiveExitNode;
         ActiveExitNodeName = activeExitPeer?.DisplayName ?? "None";
 
@@ -328,7 +331,7 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
-            // Try Windows Terminal first, fall back to cmd.exe
+            // Cascade: Windows Terminal → PowerShell → cmd.exe
             var started = TryStartTerminal("wt.exe", sshCommand)
                        || TryStartTerminal("powershell.exe", $"-NoExit -Command {sshCommand}")
                        || TryStartTerminal("cmd.exe", $"/K {sshCommand}");

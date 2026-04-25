@@ -71,6 +71,7 @@ public class ApiDevice
 
     public string PrimaryAddress => Addresses.FirstOrDefault() ?? "";
     public string ShortName => Hostname.Length > 0 ? Hostname : Name.Split('.').FirstOrDefault() ?? Name;
+    // Tailscale mandates the "tag:" prefix in ACL policy, but it's noise in the UI
     public string TagsDisplay => Tags is { Count: > 0 }
         ? string.Join(", ", Tags.Select(t => t.StartsWith("tag:") ? t[4..] : t))
         : "";
@@ -179,6 +180,10 @@ public class ApiNetworkLog
 
     [JsonPropertyName("subnetTraffic")]
     public ApiTrafficEntry? SubnetTraffic { get; set; }
+
+    private ApiTrafficEntry? Traffic => VirtualTraffic ?? SubnetTraffic;
+    public string TrafficSrc => Traffic?.Src ?? "";
+    public string TrafficDst => Traffic?.Dst ?? "";
 }
 
 public class ApiTrafficEntry
@@ -275,7 +280,7 @@ public class CreateKeyRequest
     public ApiKeyCapabilities Capabilities { get; set; } = new();
 
     [JsonPropertyName("expirySeconds")]
-    public int ExpirySeconds { get; set; } = 7776000; // 90 days
+    public int ExpirySeconds { get; set; } = 7776000; // 90 days — Tailscale API maximum
 
     [JsonPropertyName("description")]
     public string Description { get; set; } = "";

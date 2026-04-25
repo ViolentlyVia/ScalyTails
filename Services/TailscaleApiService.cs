@@ -27,11 +27,13 @@ public class TailscaleApiService : ITailscaleApiService
         _http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
     }
 
+    // "-" is the Tailscale API shorthand for the authenticated user's own tailnet
     private string Tailnet => _settings.Settings.Tailnet;
 
     private HttpRequestMessage BuildRequest(HttpMethod method, string path, object? body = null)
     {
         var request = new HttpRequestMessage(method, $"{BaseUrl}{path}");
+        // Auth header set per-request so a key change in Settings takes effect immediately
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _settings.Settings.ApiKey);
         if (body != null)
             request.Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
@@ -121,6 +123,7 @@ public class TailscaleApiService : ITailscaleApiService
         try
         {
             using var request = BuildRequest(HttpMethod.Get, $"/tailnet/{Tailnet}/acl");
+            // Override Accept: the API returns HuJSON if Accept includes */*; force JSON
             request.Headers.Accept.Clear();
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             using var response = await _http.SendAsync(request, ct);

@@ -8,10 +8,10 @@ public class NetCheckResult
     public bool UDP { get; set; }
 
     [JsonPropertyName("IPv4")]
-    public string? IPv4 { get; set; }
+    public bool IPv4 { get; set; }
 
     [JsonPropertyName("IPv6")]
-    public string? IPv6 { get; set; }
+    public bool IPv6 { get; set; }
 
     [JsonPropertyName("MappingVariesByDestIP")]
     public bool? MappingVariesByDestIP { get; set; }
@@ -40,15 +40,17 @@ public class NetCheckResult
     [JsonPropertyName("GlobalV6")]
     public string? GlobalV6 { get; set; }
 
-    public bool HasIPv4 => !string.IsNullOrEmpty(IPv4) || !string.IsNullOrEmpty(GlobalV4);
-    public bool HasIPv6 => !string.IsNullOrEmpty(IPv6) || !string.IsNullOrEmpty(GlobalV6);
-    public string PublicIPv4 => GlobalV4 ?? IPv4 ?? "—";
-    public string PublicIPv6 => GlobalV6 ?? IPv6 ?? "—";
+    public bool HasIPv4 => IPv4 || !string.IsNullOrEmpty(GlobalV4);
+    public bool HasIPv6 => IPv6 || !string.IsNullOrEmpty(GlobalV6);
+    // GlobalV4 is serialized as "ip:port" (Go's netip.AddrPort); strip the port suffix
+    public string PublicIPv4 => string.IsNullOrEmpty(GlobalV4) ? (IPv4 ? "Available" : "—") : GlobalV4.Split(':')[0];
+    public string PublicIPv6 => string.IsNullOrEmpty(GlobalV6) ? (IPv6 ? "Available" : "—") : GlobalV6;
 
     public IEnumerable<DerpLatency> SortedDerpLatencies()
     {
         if (RegionLatency is null) return [];
         return RegionLatency
+            // RegionLatency values are nanoseconds (Go's time.Duration); convert to ms
             .Select(kv => new DerpLatency(kv.Key, kv.Value / 1_000_000.0))
             .OrderBy(d => d.LatencyMs);
     }

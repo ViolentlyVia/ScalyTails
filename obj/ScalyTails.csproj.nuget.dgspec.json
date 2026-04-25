@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\Via\\OneDrive\\CodingFiles\\GitHub\\ScalyTails\\ScalyTails\\ScalyTails.csproj": {}
+    "C:\\Users\\Via\\OneDrive\\CodingFiles\\GitHub\\ScalyTails\\ScalyTails.csproj": {}
   },
   "projects": {
-    "C:\\Users\\Via\\OneDrive\\CodingFiles\\GitHub\\ScalyTails\\ScalyTails\\ScalyTails.csproj": {
+    "C:\\Users\\Via\\OneDrive\\CodingFiles\\GitHub\\ScalyTails\\ScalyTails.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\Via\\OneDrive\\CodingFiles\\GitHub\\ScalyTails\\ScalyTails\\ScalyTails.csproj",
+        "projectUniqueName": "C:\\Users\\Via\\OneDrive\\CodingFiles\\GitHub\\ScalyTails\\ScalyTails.csproj",
         "projectName": "ScalyTails",
-        "projectPath": "C:\\Users\\Via\\OneDrive\\CodingFiles\\GitHub\\ScalyTails\\ScalyTails\\ScalyTails.csproj",
+        "projectPath": "C:\\Users\\Via\\OneDrive\\CodingFiles\\GitHub\\ScalyTails\\ScalyTails.csproj",
         "packagesPath": "C:\\Users\\Via\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\Via\\OneDrive\\CodingFiles\\GitHub\\ScalyTails\\ScalyTails\\obj\\",
+        "outputPath": "C:\\Users\\Via\\OneDrive\\CodingFiles\\GitHub\\ScalyTails\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\Via\\AppData\\Roaming\\NuGet\\NuGet.Config",

@@ -39,6 +39,9 @@ public partial class DiagnosticsViewModel : ObservableObject
     [ObservableProperty] private string _updateStatus = "";
     [ObservableProperty] private bool _updateAvailable;
 
+    // Cached to avoid allocating a new instance on every netcheck invocation
+    private static readonly JsonSerializerOptions _jsonOptions = new() { PropertyNameCaseInsensitive = true };
+
     public DiagnosticsViewModel(ITailscaleService tailscale)
     {
         _tailscale = tailscale;
@@ -52,14 +55,24 @@ public partial class DiagnosticsViewModel : ObservableObject
         try
         {
             var result = await _tailscale.NetCheckAsync();
-            if (!result.Success || string.IsNullOrWhiteSpace(result.Stdout))
+            // Some Tailscale versions write netcheck JSON to stderr rather than stdout
+            var json = string.IsNullOrWhiteSpace(result.Stdout) ? result.Stderr : result.Stdout;
+            if (string.IsNullOrWhiteSpace(json))
             {
-                StatusMessage = "netcheck failed: " + result.Stderr;
+                StatusMessage = "netcheck produced no output. Is Tailscale running?";
                 return;
             }
 
-            var report = JsonSerializer.Deserialize<NetCheckResult>(result.Stdout,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            NetCheckResult? report;
+            try
+            {
+                report = JsonSerializer.Deserialize<NetCheckResult>(json, _jsonOptions);
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Failed to parse netcheck output: {ex.Message}";
+                return;
+            }
 
             if (report is null) { StatusMessage = "Failed to parse netcheck output."; return; }
 

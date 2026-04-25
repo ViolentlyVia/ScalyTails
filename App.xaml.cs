@@ -15,12 +15,15 @@ public partial class App : System.Windows.Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        // Suppress noisy MaterialDesign resource-lookup warnings from the debug output
         PresentationTraceSources.ResourceDictionarySource.Switch.Level = SourceLevels.Critical;
 
-        var service = new TailscaleService();
-        var vm = new MainViewModel(service);
+        var cliService      = new TailscaleService();
+        var settingsService = new AppSettingsService();
+        var apiService      = new TailscaleApiService(settingsService);
+        var vm              = new MainViewModel(cliService);
 
-        _mainWindow = new MainWindow(vm);
+        _mainWindow = new MainWindow(vm, cliService, settingsService, apiService);
 
         SetupTrayIcon(vm);
 
@@ -78,9 +81,11 @@ public partial class App : System.Windows.Application
                     var tip = $"ScalyTails — {vm.StatusMessage}";
                     if (!string.IsNullOrEmpty(vm.SelfIPs))
                         tip += $"\n{vm.SelfIPs}";
+                    // NotifyIcon silently truncates tooltip text at 128 characters
                     _trayIcon.Text = tip.Length > 127 ? tip[..127] : tip;
                 }
 
+                // ContextMenuStrip items aren't thread-safe; marshal to the UI thread
                 Dispatcher.InvokeAsync(() =>
                     connectItem.Text = vm.IsRunning ? "Disconnect" : "Connect");
             }

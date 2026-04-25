@@ -6,6 +6,7 @@ namespace ScalyTails.Services;
 
 public class AppSettingsService : IAppSettingsService
 {
+    // %APPDATA%\ScalyTails\settings.json — survives app reinstalls
     private static readonly string SettingsPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "ScalyTails", "settings.json");

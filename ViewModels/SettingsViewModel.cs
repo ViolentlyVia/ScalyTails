@@ -61,6 +61,7 @@ public partial class SettingsViewModel : ObservableObject
             Accounts.Clear();
             if (result.Success && !string.IsNullOrWhiteSpace(result.Stdout))
             {
+                // First line is a header row; active account is prefixed with '*'
                 foreach (var line in result.Stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries).Skip(1))
                 {
                     var name = line.Trim().TrimStart('*').Trim();

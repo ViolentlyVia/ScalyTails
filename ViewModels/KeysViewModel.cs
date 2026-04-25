@@ -6,7 +6,7 @@ using ScalyTails.Services;
 
 namespace ScalyTails.ViewModels;
 
-public partial class KeysViewModel : ObservableObject
+public partial class KeysViewModel : ObservableObject, IApiKeyAware
 {
     private readonly ITailscaleApiService _api;
 
@@ -23,6 +23,7 @@ public partial class KeysViewModel : ObservableObject
     [ObservableProperty] private string _createdKeyValue = "";
 
     public bool HasApiKey => _api.IsConfigured;
+    public void OnApiKeyChanged() => OnPropertyChanged(nameof(HasApiKey));
 
     public KeysViewModel(ITailscaleApiService api)
     {

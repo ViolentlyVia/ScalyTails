@@ -31,9 +31,11 @@ public class TailscaleStatus
     [JsonPropertyName("CertDomains")]
     public List<string>? CertDomains { get; set; }
 
+    // "Starting" is included so the UI treats the brief connecting phase as running
     public bool IsRunning => BackendState is "Running" or "Starting";
     public bool NeedsLogin => BackendState == "NeedsLogin";
 
+    // Peer dict is absent (not just empty) when disconnected, so ?? guards null
     public IEnumerable<TailscalePeer> AllPeers =>
         Peer?.Values ?? Enumerable.Empty<TailscalePeer>();
 

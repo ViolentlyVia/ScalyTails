@@ -6,7 +6,7 @@ using ScalyTails.Services;
 
 namespace ScalyTails.ViewModels;
 
-public partial class UsersViewModel : ObservableObject
+public partial class UsersViewModel : ObservableObject, IApiKeyAware
 {
     private readonly ITailscaleApiService _api;
 
@@ -16,6 +16,7 @@ public partial class UsersViewModel : ObservableObject
     [ObservableProperty] private ObservableCollection<ApiUser> _users = [];
 
     public bool HasApiKey => _api.IsConfigured;
+    public void OnApiKeyChanged() => OnPropertyChanged(nameof(HasApiKey));
 
     public UsersViewModel(ITailscaleApiService api)
     {

@@ -6,7 +6,7 @@ using ScalyTails.Services;
 
 namespace ScalyTails.ViewModels;
 
-public partial class LogsViewModel : ObservableObject
+public partial class LogsViewModel : ObservableObject, IApiKeyAware
 {
     private readonly ITailscaleApiService _api;
 
@@ -17,6 +17,7 @@ public partial class LogsViewModel : ObservableObject
     [ObservableProperty] private int _hoursBack = 24;
 
     public bool HasApiKey => _api.IsConfigured;
+    public void OnApiKeyChanged() => OnPropertyChanged(nameof(HasApiKey));
     public int[] HourOptions { get; } = [1, 6, 24, 48, 168];
 
     public LogsViewModel(ITailscaleApiService api)

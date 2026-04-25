@@ -25,7 +25,7 @@
         <!-- Self-contained nav button style — no dependency on MaterialDesignNavigationRailButton -->
         <Style x:Key="NavButtonStyle" TargetType="RadioButton">
             <Setter Property="GroupName" Value="Nav"/>
-            <Setter Property="Height" Value="72"/>
+            <Setter Property="Height" Value="54"/>
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
             <Setter Property="Cursor" Value="Hand"/>
@@ -63,6 +63,13 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+        </Style>
+
+        <Style x:Key="NavGroupLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{DynamicResource MaterialDesignBodyLight}"/>
+            <Setter Property="Margin" Value="16,10,0,2"/>
         </Style>
     </Window.Resources>
 
@@ -149,70 +156,177 @@
                     Background="{DynamicResource MaterialDesignCardBackground}"
                     BorderBrush="{DynamicResource MaterialDesignDivider}"
                     BorderThickness="0,0,1,0">
-                <StackPanel Margin="0,8">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="0,8">
 
-                    <RadioButton Style="{StaticResource NavButtonStyle}"
-                                 IsChecked="True"
-                                 Click="NavButton_Click" Tag="Overview">
-                        <StackPanel HorizontalAlignment="Center">
-                            <materialDesign:PackIcon Kind="ViewDashboard" Width="24" Height="24"
-                                                     HorizontalAlignment="Center"
-                                                     Foreground="{DynamicResource MaterialDesignBody}"/>
-                            <TextBlock Text="Overview" FontSize="11" HorizontalAlignment="Center"
-                                       Margin="0,3,0,0"
-                                       Foreground="{DynamicResource MaterialDesignBody}"/>
-                        </StackPanel>
-                    </RadioButton>
+                        <TextBlock Text="NETWORK" Style="{StaticResource NavGroupLabel}"/>
 
-                    <RadioButton Style="{StaticResource NavButtonStyle}"
-                                 Click="NavButton_Click" Tag="Peers">
-                        <StackPanel HorizontalAlignment="Center">
-                            <materialDesign:PackIcon Kind="AccountMultiple" Width="24" Height="24"
-                                                     HorizontalAlignment="Center"
-                                                     Foreground="{DynamicResource MaterialDesignBody}"/>
-                            <TextBlock Text="Peers" FontSize="11" HorizontalAlignment="Center"
-                                       Margin="0,3,0,0"
-                                       Foreground="{DynamicResource MaterialDesignBody}"/>
-                        </StackPanel>
-                    </RadioButton>
+                        <RadioButton Style="{StaticResource NavButtonStyle}"
+                                     IsChecked="True"
+                                     Click="NavButton_Click" Tag="Overview">
+                            <StackPanel HorizontalAlignment="Center">
+                                <materialDesign:PackIcon Kind="ViewDashboard" Width="24" Height="24"
+                                                         HorizontalAlignment="Center"
+                                                         Foreground="{DynamicResource MaterialDesignBody}"/>
+                                <TextBlock Text="Overview" FontSize="11" HorizontalAlignment="Center"
+                                           Margin="0,3,0,0" Foreground="{DynamicResource MaterialDesignBody}"/>
+                            </StackPanel>
+                        </RadioButton>
 
-                    <RadioButton Style="{StaticResource NavButtonStyle}"
-                                 Click="NavButton_Click" Tag="ExitNodes">
-                        <StackPanel HorizontalAlignment="Center">
-                            <materialDesign:PackIcon Kind="Directions" Width="24" Height="24"
-                                                     HorizontalAlignment="Center"
-                                                     Foreground="{DynamicResource MaterialDesignBody}"/>
-                            <TextBlock Text="Exit Nodes" FontSize="11" HorizontalAlignment="Center"
-                                       Margin="0,3,0,0"
-                                       Foreground="{DynamicResource MaterialDesignBody}"/>
-                        </StackPanel>
-                    </RadioButton>
+                        <RadioButton Style="{StaticResource NavButtonStyle}"
+                                     Click="NavButton_Click" Tag="Peers">
+                            <StackPanel HorizontalAlignment="Center">
+                                <materialDesign:PackIcon Kind="AccountMultiple" Width="24" Height="24"
+                                                         HorizontalAlignment="Center"
+                                                         Foreground="{DynamicResource MaterialDesignBody}"/>
+                                <TextBlock Text="Peers" FontSize="11" HorizontalAlignment="Center"
+                                           Margin="0,3,0,0" Foreground="{DynamicResource MaterialDesignBody}"/>
+                            </StackPanel>
+                        </RadioButton>
 
-                    <RadioButton Style="{StaticResource NavButtonStyle}"
-                                 Click="NavButton_Click" Tag="SubnetRoutes">
-                        <StackPanel HorizontalAlignment="Center">
-                            <materialDesign:PackIcon Kind="RouterNetwork" Width="24" Height="24"
-                                                     HorizontalAlignment="Center"
-                                                     Foreground="{DynamicResource MaterialDesignBody}"/>
-                            <TextBlock Text="Subnet Routes" FontSize="11" HorizontalAlignment="Center"
-                                       Margin="0,3,0,0"
-                                       Foreground="{DynamicResource MaterialDesignBody}"/>
-                        </StackPanel>
-                    </RadioButton>
+                        <RadioButton Style="{StaticResource NavButtonStyle}"
+                                     Click="NavButton_Click" Tag="ExitNodes">
+                            <StackPanel HorizontalAlignment="Center">
+                                <materialDesign:PackIcon Kind="Directions" Width="24" Height="24"
+                                                         HorizontalAlignment="Center"
+                                                         Foreground="{DynamicResource MaterialDesignBody}"/>
+                                <TextBlock Text="Exit Nodes" FontSize="11" HorizontalAlignment="Center"
+                                           Margin="0,3,0,0" Foreground="{DynamicResource MaterialDesignBody}"/>
+                            </StackPanel>
+                        </RadioButton>
 
-                    <RadioButton Style="{StaticResource NavButtonStyle}"
-                                 Click="NavButton_Click" Tag="Serve">
-                        <StackPanel HorizontalAlignment="Center">
-                            <materialDesign:PackIcon Kind="ServerNetwork" Width="24" Height="24"
-                                                     HorizontalAlignment="Center"
-                                                     Foreground="{DynamicResource MaterialDesignBody}"/>
-                            <TextBlock Text="Serve" FontSize="11" HorizontalAlignment="Center"
-                                       Margin="0,3,0,0"
-                                       Foreground="{DynamicResource MaterialDesignBody}"/>
-                        </StackPanel>
-                    </RadioButton>
+                        <RadioButton Style="{StaticResource NavButtonStyle}"
+                                     Click="NavButton_Click" Tag="SubnetRoutes">
+                            <StackPanel HorizontalAlignment="Center">
+                                <materialDesign:PackIcon Kind="RouterNetwork" Width="24" Height="24"
+                                                         HorizontalAlignment="Center"
+                                                         Foreground="{DynamicResource MaterialDesignBody}"/>
+                                <TextBlock Text="Subnet Routes" FontSize="11" HorizontalAlignment="Center"
+                                           Margin="0,3,0,0" Foreground="{DynamicResource MaterialDesignBody}"/>
+                            </StackPanel>
+                        </RadioButton>
 
-                </StackPanel>
+                        <RadioButton Style="{StaticResource NavButtonStyle}"
+                                     Click="NavButton_Click" Tag="Serve">
+                            <StackPanel HorizontalAlignment="Center">
+                                <materialDesign:PackIcon Kind="ServerNetwork" Width="24" Height="24"
+                                                         HorizontalAlignment="Center"
+                                                         Foreground="{DynamicResource MaterialDesignBody}"/>
+                                <TextBlock Text="Serve" FontSize="11" HorizontalAlignment="Center"
+                                           Margin="0,3,0,0" Foreground="{DynamicResource MaterialDesignBody}"/>
+                            </StackPanel>
+                        </RadioButton>
+
+                        <Border Height="1" Background="{DynamicResource MaterialDesignDivider}" Margin="8,4"/>
+                        <TextBlock Text="TOOLS" Style="{StaticResource NavGroupLabel}"/>
+
+                        <RadioButton Style="{StaticResource NavButtonStyle}"
+                                     Click="NavButton_Click" Tag="Diagnostics">
+                            <StackPanel HorizontalAlignment="Center">
+                                <materialDesign:PackIcon Kind="Pulse" Width="24" Height="24"
+                                                         HorizontalAlignment="Center"
+                                                         Foreground="{DynamicResource MaterialDesignBody}"/>
+                                <TextBlock Text="Diagnostics" FontSize="11" HorizontalAlignment="Center"
+                                           Margin="0,3,0,0" Foreground="{DynamicResource MaterialDesignBody}"/>
+                            </StackPanel>
+                        </RadioButton>
+
+                        <RadioButton Style="{StaticResource NavButtonStyle}"
+                                     Click="NavButton_Click" Tag="TailDrive">
+                            <StackPanel HorizontalAlignment="Center">
+                                <materialDesign:PackIcon Kind="FolderNetwork" Width="24" Height="24"
+                                                         HorizontalAlignment="Center"
+                                                         Foreground="{DynamicResource MaterialDesignBody}"/>
+                                <TextBlock Text="TailDrive" FontSize="11" HorizontalAlignment="Center"
+                                           Margin="0,3,0,0" Foreground="{DynamicResource MaterialDesignBody}"/>
+                            </StackPanel>
+                        </RadioButton>
+
+                        <Border Height="1" Background="{DynamicResource MaterialDesignDivider}" Margin="8,4"/>
+                        <TextBlock Text="ADMIN" Style="{StaticResource NavGroupLabel}"/>
+
+                        <RadioButton Style="{StaticResource NavButtonStyle}"
+                                     Click="NavButton_Click" Tag="Devices">
+                            <StackPanel HorizontalAlignment="Center">
+                                <materialDesign:PackIcon Kind="Devices" Width="24" Height="24"
+                                                         HorizontalAlignment="Center"
+                                                         Foreground="{DynamicResource MaterialDesignBody}"/>
+                                <TextBlock Text="Devices" FontSize="11" HorizontalAlignment="Center"
+                                           Margin="0,3,0,0" Foreground="{DynamicResource MaterialDesignBody}"/>
+                            </StackPanel>
+                        </RadioButton>
+
+                        <RadioButton Style="{StaticResource NavButtonStyle}"
+                                     Click="NavButton_Click" Tag="Users">
+                            <StackPanel HorizontalAlignment="Center">
+                                <materialDesign:PackIcon Kind="AccountGroup" Width="24" Height="24"
+                                                         HorizontalAlignment="Center"
+                                                         Foreground="{DynamicResource MaterialDesignBody}"/>
+                                <TextBlock Text="Users" FontSize="11" HorizontalAlignment="Center"
+                                           Margin="0,3,0,0" Foreground="{DynamicResource MaterialDesignBody}"/>
+                            </StackPanel>
+                        </RadioButton>
+
+                        <RadioButton Style="{StaticResource NavButtonStyle}"
+                                     Click="NavButton_Click" Tag="DNS">
+                            <StackPanel HorizontalAlignment="Center">
+                                <materialDesign:PackIcon Kind="Dns" Width="24" Height="24"
+                                                         HorizontalAlignment="Center"
+                                                         Foreground="{DynamicResource MaterialDesignBody}"/>
+                                <TextBlock Text="DNS" FontSize="11" HorizontalAlignment="Center"
+                                           Margin="0,3,0,0" Foreground="{DynamicResource MaterialDesignBody}"/>
+                            </StackPanel>
+                        </RadioButton>
+
+                        <RadioButton Style="{StaticResource NavButtonStyle}"
+                                     Click="NavButton_Click" Tag="Policy">
+                            <StackPanel HorizontalAlignment="Center">
+                                <materialDesign:PackIcon Kind="ShieldAccount" Width="24" Height="24"
+                                                         HorizontalAlignment="Center"
+                                                         Foreground="{DynamicResource MaterialDesignBody}"/>
+                                <TextBlock Text="Policy" FontSize="11" HorizontalAlignment="Center"
+                                           Margin="0,3,0,0" Foreground="{DynamicResource MaterialDesignBody}"/>
+                            </StackPanel>
+                        </RadioButton>
+
+                        <RadioButton Style="{StaticResource NavButtonStyle}"
+                                     Click="NavButton_Click" Tag="Logs">
+                            <StackPanel HorizontalAlignment="Center">
+                                <materialDesign:PackIcon Kind="FormatListBulleted" Width="24" Height="24"
+                                                         HorizontalAlignment="Center"
+                                                         Foreground="{DynamicResource MaterialDesignBody}"/>
+                                <TextBlock Text="Logs" FontSize="11" HorizontalAlignment="Center"
+                                           Margin="0,3,0,0" Foreground="{DynamicResource MaterialDesignBody}"/>
+                            </StackPanel>
+                        </RadioButton>
+
+                        <RadioButton Style="{StaticResource NavButtonStyle}"
+                                     Click="NavButton_Click" Tag="Keys">
+                            <StackPanel HorizontalAlignment="Center">
+                                <materialDesign:PackIcon Kind="Key" Width="24" Height="24"
+                                                         HorizontalAlignment="Center"
+                                                         Foreground="{DynamicResource MaterialDesignBody}"/>
+                                <TextBlock Text="Auth Keys" FontSize="11" HorizontalAlignment="Center"
+                                           Margin="0,3,0,0" Foreground="{DynamicResource MaterialDesignBody}"/>
+                            </StackPanel>
+                        </RadioButton>
+
+                        <Border Height="1" Background="{DynamicResource MaterialDesignDivider}" Margin="8,4"/>
+                        <TextBlock Text="ACCOUNT" Style="{StaticResource NavGroupLabel}"/>
+
+                        <RadioButton Style="{StaticResource NavButtonStyle}"
+                                     Click="NavButton_Click" Tag="Settings">
+                            <StackPanel HorizontalAlignment="Center">
+                                <materialDesign:PackIcon Kind="Cog" Width="24" Height="24"
+                                                         HorizontalAlignment="Center"
+                                                         Foreground="{DynamicResource MaterialDesignBody}"/>
+                                <TextBlock Text="Settings" FontSize="11" HorizontalAlignment="Center"
+                                           Margin="0,3,0,0" Foreground="{DynamicResource MaterialDesignBody}"/>
+                            </StackPanel>
+                        </RadioButton>
+
+                    </StackPanel>
+                </ScrollViewer>
             </Border>
 
             <!-- Page host -->

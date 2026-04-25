@@ -29,6 +29,7 @@ public class TailscaleService : ITailscaleService
                 return path;
         }
 
+        // Fall back to PATH lookup in case Tailscale is installed non-standardly
         try
         {
             using var probe = new Process
@@ -44,6 +45,7 @@ public class TailscaleService : ITailscaleService
                 }
             };
             probe.Start();
+            // 3-second cap so a hung process doesn't block startup
             probe.WaitForExit(3000);
             return probe.ExitCode == 0 ? "tailscale" : null;
         }
@@ -102,6 +104,7 @@ public class TailscaleService : ITailscaleService
 
     public async Task<TailscalePrefs?> GetPrefsAsync(CancellationToken ct = default)
     {
+        // "debug prefs" is the only subcommand that returns preferences as JSON
         var result = await RunAsync("debug prefs", ct);
         if (!result.Success || string.IsNullOrWhiteSpace(result.Stdout))
             return null;
@@ -130,6 +133,7 @@ public class TailscaleService : ITailscaleService
         return RunAsync(args, ct);
     }
 
+    // Empty string after = tells the CLI to clear the exit node (not a typo)
     public Task<CliResult> ClearExitNodeAsync(CancellationToken ct = default) =>
         RunAsync("set --exit-node=", ct);
 

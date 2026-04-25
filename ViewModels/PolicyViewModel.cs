@@ -4,7 +4,7 @@ using ScalyTails.Services;
 
 namespace ScalyTails.ViewModels;
 
-public partial class PolicyViewModel : ObservableObject
+public partial class PolicyViewModel : ObservableObject, IApiKeyAware
 {
     private readonly ITailscaleApiService _api;
 
@@ -15,6 +15,7 @@ public partial class PolicyViewModel : ObservableObject
     [ObservableProperty] private bool _isDirty;
 
     public bool HasApiKey => _api.IsConfigured;
+    public void OnApiKeyChanged() => OnPropertyChanged(nameof(HasApiKey));
 
     private string _savedText = "";
 
