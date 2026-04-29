@@ -98,4 +98,12 @@ All long-running operations are `async`/`await`. The main view model polls Tails
 | .NET 8.0 (WPF) | 8.0 | Framework |
 | CommunityToolkit.Mvvm | 8.3.2 | MVVM source generators (`[ObservableProperty]`, `[RelayCommand]`) |
 | MaterialDesignThemes | 5.1.0 | UI controls and icons (MDI icon set) |
-| Microsoft.Xaml.Behaviors.Wpf | 1.1.122 | XAML interaction triggers |
+| Hardcodet.NotifyIcon.Wpf | 2.0.1 | System tray icon and context menu |
+
+---
+
+## License
+
+ScalyTails is free software released under the **[GNU General Public License v3.0](LICENSE)**.
+
+You are free to use, copy, modify, and distribute this software under the terms of the GPL v3. See the [LICENSE](LICENSE) file for the full license text.

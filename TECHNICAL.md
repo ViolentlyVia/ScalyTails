@@ -36,7 +36,7 @@ This split is fundamental to the design. Pages that only need local state (Overv
 ## 2. Tech Stack
 
 | Component | Library / Version |
-|---|---|
+| --- | --- |
 | UI Framework | WPF (.NET 8, `net8.0-windows`) |
 | MVVM helpers | CommunityToolkit.Mvvm 8.3.2 |
 | UI theme | MaterialDesignThemes 5.1.0 (MDI icon set) |
@@ -48,7 +48,7 @@ This split is fundamental to the design. Pages that only need local state (Overv
 
 ## 3. Directory Structure
 
-```
+```text
 ScalyTails/
 ├── App.xaml / App.xaml.cs          Application entry point, service wiring, tray icon
 ├── MainWindow.xaml / .xaml.cs      Shell window: nav sidebar + content frame
@@ -117,7 +117,7 @@ ScalyTails/
 
 ## 4. Architecture
 
-```
+```text
 ┌────────────────────���────────────────────────────────────────────┐
 │  App.xaml.cs                                                     │
 │  Service construction + tray icon                                │
@@ -146,7 +146,7 @@ Pages are split into two groups with different data sources and lifecycles:
 **CLI-backed** (no credentials needed, always available if Tailscale is installed):
 Overview, Peers, Exit Nodes, Subnet Routes, Serve/Funnel, Diagnostics, TailDrive, Settings (account switching portion)
 
-These all share a single `MainViewModel` which polls `tailscale status`, `tailscale debug prefs`, and `tailscale serve status` every 5 seconds via a background `PeriodicTimer`.
+Overview, Peers, Exit Nodes, Subnet Routes, and Serve/Funnel share a single `MainViewModel` which polls `tailscale status`, `tailscale debug prefs`, and `tailscale serve status` every 5 seconds via a background `PeriodicTimer`. Diagnostics, TailDrive, and Settings each have their own dedicated ViewModel.
 
 **API-backed** (requires `tskey-api-` access token):
 Devices, Users, DNS, Policy, Logs, Keys
@@ -182,6 +182,7 @@ request.Headers.Authorization = new AuthenticationHeaderValue("Basic", creds);
 ```
 
 **Important:** Tailscale has two distinct key types:
+
 - `tskey-auth-...` — device enrollment keys (used with `tailscale up --auth-key`). Will always return HTTP 401 against the REST API.
 - `tskey-api-...` — API access tokens (used with this app). Generated at tailscale.com/admin/settings/keys → "Generate access token".
 
@@ -266,7 +267,7 @@ Navigation is flat — a `RadioButton` sidebar on the left, a `ContentControl` (
 - All 14 page instances are pre-allocated in `MainWindow` fields. Switching pages just sets `PageHost.Content`.
 - Page instances retain their `DataContext` and scroll state for the lifetime of the window.
 - No frame history, no URI routing. The `RadioButton.Tag` string is the routing key (see `NavButton_Click` in `MainWindow.xaml.cs`).
-- Six of the 14 pages share `MainViewModel` as their `DataContext`. The remaining eight have dedicated ViewModels.
+- Five of the 14 pages share `MainViewModel` as their `DataContext` (Overview, Peers, Exit Nodes, Subnet Routes, Serve). The remaining nine have dedicated ViewModels.
 
 ---
 
@@ -332,7 +333,7 @@ private void ApiKeyBox_PasswordChanged(object sender, RoutedEventArgs e)
 All converters live in `ScalyTails.Converters` and are declared as resources in individual page XAML files.
 
 | Converter | Input | Output | Notes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `BoolToVisibilityConverter` | bool / int / string | Visibility | `Invert="True"` for inverse. Handles `string.Length` bindings. |
 | `BoolToColorConverter` | bool | Brush | Configure `TrueColor` / `FalseColor` in XAML. |
 | `BoolToStringConverter` | bool | string | Configure `TrueValue` / `FalseValue` in XAML. |
@@ -349,7 +350,7 @@ All converters live in `ScalyTails.Converters` and are declared as resources in 
 ### CLI models
 
 | Model | Source command | Notes |
-|---|---|---|
+| --- | --- | --- |
 | `TailscaleStatus` | `tailscale status --json --peers` | `AllPeers` guards the null `Peer` dict when disconnected |
 | `TailscalePrefs` | `tailscale debug prefs` | Includes route acceptance, SSH, shields-up, exit node prefs |
 | `ServeStatus` | `tailscale serve status --json` | `ToEntries()` flattens nested Web/TCP dicts to a bindable list |
@@ -461,31 +462,40 @@ In `MainWindow.xaml`, add a `RadioButton` to the appropriate nav section (CLI pa
 ## 12. Known Constraints and Gotchas
 
 ### MaterialDesign icon names
+
 Only MDI icons are bundled. If an icon name is wrong, the app crashes at startup with `XamlParseException: {"Cannot create instance of 'PackIconKind'..."}`. Always verify icon names at pictogrammers.com/library/mdi before using them.
 
 ### PasswordBox data binding
+
 `PasswordBox` does not support `{Binding}` for its `Password` property. Use the `PasswordChanged` event in code-behind to push the value into the ViewModel (see `SettingsPage.xaml.cs`).
 
 ### Tailscale key types
+
 Two distinct key types exist:
+
 - `tskey-auth-...` — device auth keys (for enrolling devices, NOT for this app)
 - `tskey-api-...` — API access tokens (required for all admin pages)
 
 Using an auth key returns HTTP 401 with `{"message":"API token invalid"}` on every API call. The Settings page shows a red warning when it detects the `tskey-auth-` prefix.
 
 ### ObservableCollection thread safety
+
 `ObservableCollection` raises `CollectionChanged` on the thread that modifies it. WPF will throw if this happens off the dispatcher thread. Always marshal collection writes via `Application.Current.Dispatcher.InvokeAsync(...)` when coming from a background task.
 
 ### IsBusy vs IsPinging
+
 `MainViewModel.IsBusy` disables most controls. `DiagnosticsViewModel.IsPinging` is a separate flag used only for the Ping button, because the main `IsBusy` would block unrelated controls on the same page while a ping is in flight.
 
 ### PeriodicTimer and cancellation
+
 `RefreshLoopAsync` catches `OperationCanceledException` and exits silently — this is the normal shutdown path when `StopRefresh()` cancels the token. Do not rethrow it.
 
 ### Settings persistence path
+
 Settings are stored in `%APPDATA%\ScalyTails\settings.json` (e.g. `C:\Users\<user>\AppData\Roaming\ScalyTails\settings.json`). They survive app reinstalls. Deleting this file resets the app to a clean state.
 
 ### Network flow logs
+
 The Logs page requires the "Network flow logging" feature to be enabled in the Tailscale admin console (tailscale.com/admin/logs) and may require a paid plan. HTTP 403/404 from this endpoint is expected on free plans.
 
 ---
@@ -499,7 +509,7 @@ The Logs page requires the "Network flow logging" feature to be enabled in the T
 
 ### Run in development
 
-```
+```sh
 dotnet run
 ```
 
