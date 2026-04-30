@@ -1,17 +1,108 @@
 @page "/logs"
 @rendermode InteractiveServer
 @inject ITailscaleApiService Api
-@inject IAppSettingsService AppSettings
 
 <PageTitle>Logs — ScalyTails</PageTitle>
 
-<MudText Typo="Typo.h5" Class="mb-4">Logs</MudText>
+<MudStack Spacing="4">
 
-@if (!Api.IsConfigured)
-{
-    <MudAlert Severity="Severity.Warning">No API key configured. Go to Settings to add one.</MudAlert>
-}
-else
-{
-    <MudAlert Severity="Severity.Info">Logs page — coming soon.</MudAlert>
+    <!-- Header -->
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.List" Color="Color.Primary" />
+            <MudText Typo="Typo.h5">Network Logs</MudText>
+            @if (!string.IsNullOrWhiteSpace(_status))
+            {
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">@_status</MudText>
+            }
+        </MudStack>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudText Typo="Typo.body2">Last</MudText>
+            <MudSelect T="int" @bind-Value="_hoursBack" Style="width:80px" Dense="true"
+                       Variant="Variant.Outlined" Margin="Margin.Dense">
+                @foreach (var h in _hourOptions)
+                {
+                    <MudSelectItem T="int" Value="h">@h</MudSelectItem>
+                }
+            </MudSelect>
+            <MudText Typo="Typo.body2">hours</MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Refresh"
+                       OnClick="LoadAsync" Disabled="_busy">
+                Load
+            </MudButton>
+        </MudStack>
+    </MudStack>
+
+    <!-- No API key warning -->
+    @if (!Api.IsConfigured)
+    {
+        <MudAlert Severity="Severity.Warning">
+            API key required. Go to <MudLink Href="/settings">Settings</MudLink> to add one.
+        </MudAlert>
+    }
+
+    <!-- Paid-plan note -->
+    <MudAlert Severity="Severity.Info" Dense="true">
+        Network flow logging requires the feature to be enabled in the Tailscale admin console
+        and may require a paid plan. HTTP 403/404 responses are expected on free plans.
+    </MudAlert>
+
+    <!-- Log table -->
+    <MudTable Items="_logs" Dense="true" Hover="true" Loading="_busy"
+              FixedHeader="true" Height="calc(100vh - 280px)"
+              SortLabel="Sort" Elevation="1">
+        <NoRecordsContent>
+            <MudText Class="mud-text-secondary pa-4">@(_loaded ? "No logs in selected time range." : "Select a time range and click Load.")</MudText>
+        </NoRecordsContent>
+        <HeaderContent>
+            <MudTh><MudTableSortLabel SortBy="new Func<ApiNetworkLog, object>(l => l.Logged ?? DateTime.MinValue)" InitialDirection="SortDirection.Descending">Time</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<ApiNetworkLog, object>(l => l.Type ?? string.Empty)">Type</MudTableSortLabel></MudTh>
+            <MudTh>Source</MudTh>
+            <MudTh>Destination</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd Style="font-family:monospace;font-size:0.8rem">
+                @(context.Logged?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "—")
+            </MudTd>
+            <MudTd>@(context.Type ?? "—")</MudTd>
+            <MudTd Style="font-family:monospace;font-size:0.8rem">@(context.TrafficSrc ?? "—")</MudTd>
+            <MudTd Style="font-family:monospace;font-size:0.8rem">@(context.TrafficDst ?? "—")</MudTd>
+        </RowTemplate>
+    </MudTable>
+
+</MudStack>
+
+@code {
+    private static readonly int[] _hourOptions = [1, 6, 24, 48, 168];
+    private int _hoursBack = 24;
+    private List<ApiNetworkLog> _logs = [];
+    private bool _busy;
+    private bool _loaded;
+    private string _status = "";
+
+    private async Task LoadAsync()
+    {
+        if (!Api.IsConfigured) { _status = "No API key configured."; return; }
+        _busy = true;
+        _status = "Loading…";
+        try
+        {
+            var start = DateTime.UtcNow.AddHours(-_hoursBack);
+            var result = await Api.GetNetworkLogsAsync(start);
+            if (!result.Success)
+            {
+                _status = $"Error: {result.Error}";
+                return;
+            }
+            // Cap at 500 — rendering thousands of rows in a table is slow
+            _logs = (result.Data?.Logs ?? [])
+                .OrderByDescending(l => l.Logged)
+                .Take(500)
+                .ToList();
+            _loaded = true;
+            _status = _logs.Count == 0 ? "No logs in range." : $"{_logs.Count} entries (capped at 500).";
+        }
+        finally { _busy = false; }
+    }
 }
