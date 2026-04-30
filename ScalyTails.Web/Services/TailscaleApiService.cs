@@ -110,6 +110,31 @@ public class TailscaleApiService : ITailscaleApiService
     public Task<ApiResult<ApiUserList>> GetUsersAsync(CancellationToken ct = default) =>
         GetAsync<ApiUserList>($"/tailnet/{Tailnet}/users", ct);
 
+    public Task<bool> UpdateUserRoleAsync(string userId, string role, CancellationToken ct = default) =>
+        SendAsync(HttpMethod.Post, $"/tailnet/{Tailnet}/users/{userId}/role", new { role }, ct);
+
+    public Task<bool> SuspendUserAsync(string userId, CancellationToken ct = default) =>
+        SendAsync(HttpMethod.Post, $"/tailnet/{Tailnet}/users/{userId}/suspend", null, ct);
+
+    public Task<bool> RestoreUserAsync(string userId, CancellationToken ct = default) =>
+        SendAsync(HttpMethod.Post, $"/tailnet/{Tailnet}/users/{userId}/restore", null, ct);
+
+    public Task<bool> DeleteUserAsync(string userId, CancellationToken ct = default) =>
+        SendAsync(HttpMethod.Delete, $"/tailnet/{Tailnet}/users/{userId}", null, ct);
+
+    public Task<ApiResult<ApiUserInviteList>> GetUserInvitesAsync(CancellationToken ct = default) =>
+        GetAsync<ApiUserInviteList>($"/tailnet/{Tailnet}/user-invites", ct);
+
+    public Task<bool> CreateUserInviteAsync(string email, string role, CancellationToken ct = default) =>
+        SendAsync(HttpMethod.Post, $"/tailnet/{Tailnet}/user-invites",
+            new[] { new { role, email } }, ct);
+
+    public Task<bool> DeleteUserInviteAsync(string inviteId, CancellationToken ct = default) =>
+        SendAsync(HttpMethod.Delete, $"/tailnet/{Tailnet}/user-invites/{inviteId}", null, ct);
+
+    public Task<bool> ResendUserInviteAsync(string inviteId, CancellationToken ct = default) =>
+        SendAsync(HttpMethod.Post, $"/tailnet/{Tailnet}/user-invites/{inviteId}/resend", null, ct);
+
     // ── DNS ────────────────────────────────────────────────────────────────────
 
     public Task<ApiResult<ApiDnsNameservers>> GetNameserversAsync(CancellationToken ct = default) =>

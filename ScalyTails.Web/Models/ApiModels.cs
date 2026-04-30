@@ -140,6 +140,32 @@ public class ApiUser
     public int DeviceCount { get; set; }
 }
 
+// ── User Invites ──────────────────────────────────────────────────────────────
+
+public class ApiUserInviteList
+{
+    [JsonPropertyName("userInvites")]
+    public List<ApiUserInvite> UserInvites { get; set; } = [];
+}
+
+public class ApiUserInvite
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = "";
+
+    [JsonPropertyName("role")]
+    public string Role { get; set; } = "";
+
+    [JsonPropertyName("email")]
+    public string Email { get; set; } = "";
+
+    [JsonPropertyName("lastEmailSentAt")]
+    public DateTime? LastEmailSentAt { get; set; }
+
+    [JsonPropertyName("inviteUrl")]
+    public string InviteUrl { get; set; } = "";
+}
+
 // ── DNS ───────────────────────────────────────────────────────────────────────
 
 public class ApiDnsNameservers

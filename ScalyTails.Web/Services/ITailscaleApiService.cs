@@ -17,6 +17,16 @@ public interface ITailscaleApiService
 
     // Users
     Task<ApiResult<ApiUserList>> GetUsersAsync(CancellationToken ct = default);
+    Task<bool> UpdateUserRoleAsync(string userId, string role, CancellationToken ct = default);
+    Task<bool> SuspendUserAsync(string userId, CancellationToken ct = default);
+    Task<bool> RestoreUserAsync(string userId, CancellationToken ct = default);
+    Task<bool> DeleteUserAsync(string userId, CancellationToken ct = default);
+
+    // User invites
+    Task<ApiResult<ApiUserInviteList>> GetUserInvitesAsync(CancellationToken ct = default);
+    Task<bool> CreateUserInviteAsync(string email, string role, CancellationToken ct = default);
+    Task<bool> DeleteUserInviteAsync(string inviteId, CancellationToken ct = default);
+    Task<bool> ResendUserInviteAsync(string inviteId, CancellationToken ct = default);
 
     // DNS
     Task<ApiResult<ApiDnsNameservers>>  GetNameserversAsync(CancellationToken ct = default);

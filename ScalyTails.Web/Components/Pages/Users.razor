@@ -1,7 +1,8 @@
 ﻿@page "/users"
 @inject ITailscaleApiService Api
+@inject IJSRuntime JS
 
-<PageTitle>Users â€” ScalyTails</PageTitle>
+<PageTitle>Users — ScalyTails</PageTitle>
 
 <MudStack Spacing="4">
 
@@ -18,7 +19,7 @@
         <MudButton Variant="Variant.Filled" Color="Color.Primary"
                    StartIcon="@Icons.Material.Filled.Refresh"
                    OnClick="LoadAsync" Disabled="_busy">
-            Load
+            Refresh
         </MudButton>
     </MudStack>
 
@@ -29,58 +30,315 @@
         </MudAlert>
     }
 
-    <MudTable Items="_users" Dense="true" Hover="true" Loading="_busy"
-              SortLabel="Sort" Elevation="1">
+    <!-- Invite user card -->
+    <MudCard>
+        <MudCardContent>
+            <MudText Typo="Typo.overline" Class="mb-3">Invite User</MudText>
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_inviteEmail" Label="Email address"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense"
+                                  Disabled="_busy" InputType="InputType.Email" />
+                </MudItem>
+                <MudItem xs="12" sm="3">
+                    <MudSelect @bind-Value="_inviteRole" Label="Role"
+                               Variant="Variant.Outlined" Margin="Margin.Dense"
+                               Disabled="_busy">
+                        <MudSelectItem Value="@("member")">Member</MudSelectItem>
+                        <MudSelectItem Value="@("admin")">Admin</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+            </MudGrid>
+        </MudCardContent>
+        <MudCardActions>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.PersonAdd"
+                       OnClick="InviteAsync"
+                       Disabled="_busy || string.IsNullOrWhiteSpace(_inviteEmail) || !Api.IsConfigured">
+                Send Invite
+            </MudButton>
+        </MudCardActions>
+    </MudCard>
+
+    <!-- Users table -->
+    <MudTable Items="_users" Dense="true" Hover="true" Loading="_busy" Elevation="1">
         <NoRecordsContent>
-            <MudText Class="mud-text-secondary pa-4">@(_loaded ? "No users found." : "Click Load to fetch users.")</MudText>
+            <MudText Class="mud-text-secondary pa-4">@(_loaded ? "No users found." : "Click Refresh to load users.")</MudText>
         </NoRecordsContent>
+        <ToolBarContent>
+            <MudText Typo="Typo.overline">Members</MudText>
+        </ToolBarContent>
         <HeaderContent>
-            <MudTh>Online</MudTh>
-            <MudTh><MudTableSortLabel SortBy="new Func<ApiUser, object>(u => u.LoginName)">Login</MudTableSortLabel></MudTh>
-            <MudTh><MudTableSortLabel SortBy="new Func<ApiUser, object>(u => u.DisplayName)">Name</MudTableSortLabel></MudTh>
-            <MudTh><MudTableSortLabel SortBy="new Func<ApiUser, object>(u => u.Role)">Role</MudTableSortLabel></MudTh>
-            <MudTh><MudTableSortLabel SortBy="new Func<ApiUser, object>(u => u.Status)">Status</MudTableSortLabel></MudTh>
-            <MudTh><MudTableSortLabel SortBy="new Func<ApiUser, object>(u => u.DeviceCount)">Devices</MudTableSortLabel></MudTh>
+            <MudTh></MudTh>
+            <MudTh>User</MudTh>
+            <MudTh>Role</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Devices</MudTh>
+            <MudTh>Last Seen</MudTh>
+            <MudTh>Actions</MudTh>
         </HeaderContent>
         <RowTemplate>
             <MudTd>
-                <MudIcon Icon="@Icons.Material.Filled.Circle"
-                         Color="@(context.CurrentlyConnected ? Color.Success : Color.Default)"
-                         Size="Size.Small" />
+                <MudTooltip Text="@(context.CurrentlyConnected ? "Online" : "Offline")">
+                    <MudIcon Icon="@Icons.Material.Filled.Circle"
+                             Color="@(context.CurrentlyConnected ? Color.Success : Color.Default)"
+                             Size="Size.Small" Style="font-size:0.6rem" />
+                </MudTooltip>
             </MudTd>
-            <MudTd Style="font-size:0.85rem">@context.LoginName</MudTd>
-            <MudTd>@context.DisplayName</MudTd>
             <MudTd>
-                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@context.Role</MudChip>
+                <MudStack Spacing="0">
+                    <MudText Style="font-weight:500">@context.DisplayName</MudText>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">@context.LoginName</MudText>
+                </MudStack>
             </MudTd>
-            <MudTd>@context.Status</MudTd>
+            <MudTd>
+                <MudSelect Value="@context.Role" T="string"
+                           Variant="Variant.Text" Margin="Margin.Dense"
+                           Disabled="_busy"
+                           ValueChanged="async r => await ChangeRoleAsync(context, r)"
+                           Style="min-width:100px">
+                    <MudSelectItem Value="@("member")">Member</MudSelectItem>
+                    <MudSelectItem Value="@("admin")">Admin</MudSelectItem>
+                    <MudSelectItem Value="@("owner")">Owner</MudSelectItem>
+                </MudSelect>
+            </MudTd>
+            <MudTd>
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
+                         Color="@(context.Status == "active" ? Color.Success : context.Status == "suspended" ? Color.Warning : Color.Default)">
+                    @context.Status
+                </MudChip>
+            </MudTd>
             <MudTd>@context.DeviceCount</MudTd>
+            <MudTd Style="font-size:0.8rem">
+                @if (context.CurrentlyConnected)
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Success">Now</MudText>
+                }
+                else if (context.LastSeen.HasValue)
+                {
+                    @context.LastSeen.Value.ToLocalTime().ToString("MMM d, HH:mm")
+                }
+            </MudTd>
+            <MudTd>
+                <MudStack Row="true" Spacing="0">
+                    @if (context.Status == "suspended")
+                    {
+                        <MudTooltip Text="Restore user">
+                            <MudIconButton Icon="@Icons.Material.Filled.LockOpen"
+                                           Color="Color.Success" Size="Size.Small"
+                                           Disabled="_busy"
+                                           OnClick="() => RestoreAsync(context)" />
+                        </MudTooltip>
+                    }
+                    else
+                    {
+                        <MudTooltip Text="Suspend user">
+                            <MudIconButton Icon="@Icons.Material.Filled.Block"
+                                           Color="Color.Warning" Size="Size.Small"
+                                           Disabled="_busy"
+                                           OnClick="() => SuspendAsync(context)" />
+                        </MudTooltip>
+                    }
+                    <MudTooltip Text="Delete user">
+                        <MudIconButton Icon="@Icons.Material.Filled.DeleteForever"
+                                       Color="Color.Error" Size="Size.Small"
+                                       Disabled="_busy"
+                                       OnClick="() => DeleteUserAsync(context)" />
+                    </MudTooltip>
+                </MudStack>
+            </MudTd>
         </RowTemplate>
     </MudTable>
+
+    <!-- Pending invites -->
+    @if (_invites.Count > 0)
+    {
+        <MudTable Items="_invites" Dense="true" Hover="true" Elevation="1">
+            <ToolBarContent>
+                <MudText Typo="Typo.overline">Pending Invites</MudText>
+            </ToolBarContent>
+            <HeaderContent>
+                <MudTh>Email</MudTh>
+                <MudTh>Role</MudTh>
+                <MudTh>Last Sent</MudTh>
+                <MudTh>Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd Style="font-size:0.85rem">@context.Email</MudTd>
+                <MudTd>
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@context.Role</MudChip>
+                </MudTd>
+                <MudTd Style="font-size:0.8rem">
+                    @(context.LastEmailSentAt.HasValue
+                        ? context.LastEmailSentAt.Value.ToLocalTime().ToString("MMM d, HH:mm")
+                        : "—")
+                </MudTd>
+                <MudTd>
+                    <MudStack Row="true" Spacing="0">
+                        <MudTooltip Text="Resend invite">
+                            <MudIconButton Icon="@Icons.Material.Filled.Send"
+                                           Color="Color.Primary" Size="Size.Small"
+                                           Disabled="_busy"
+                                           OnClick="() => ResendInviteAsync(context)" />
+                        </MudTooltip>
+                        <MudTooltip Text="Cancel invite">
+                            <MudIconButton Icon="@Icons.Material.Filled.Cancel"
+                                           Color="Color.Error" Size="Size.Small"
+                                           Disabled="_busy"
+                                           OnClick="() => DeleteInviteAsync(context)" />
+                        </MudTooltip>
+                    </MudStack>
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
 
 </MudStack>
 
 @code {
     private List<ApiUser> _users = [];
+    private List<ApiUserInvite> _invites = [];
+    private string _inviteEmail = "";
+    private string _inviteRole = "member";
     private bool _busy;
     private bool _loaded;
     private string _status = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Api.IsConfigured) await LoadAsync();
+    }
 
     private async Task LoadAsync()
     {
         if (!Api.IsConfigured) { _status = "No API key configured."; return; }
         _busy = true;
-        _status = "Loadingâ€¦";
+        _status = "Loading...";
         try
         {
-            var result = await Api.GetUsersAsync();
-            if (!result.Success) { _status = $"Error: {result.Error}"; return; }
-            _users = (result.Data?.Users ?? [])
+            var usersTask   = Api.GetUsersAsync();
+            var invitesTask = Api.GetUserInvitesAsync();
+            await Task.WhenAll(usersTask, invitesTask);
+
+            var usersResult   = await usersTask;
+            var invitesResult = await invitesTask;
+
+            if (!usersResult.Success)
+            {
+                _status = $"Error: {usersResult.Error}";
+                return;
+            }
+
+            _users = (usersResult.Data?.Users ?? [])
                 .OrderByDescending(u => u.CurrentlyConnected)
-                .ThenBy(u => u.LoginName)
+                .ThenBy(u => u.DisplayName)
                 .ToList();
+
+            _invites = invitesResult.Data?.UserInvites ?? [];
             _loaded = true;
             _status = "";
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task ChangeRoleAsync(ApiUser user, string newRole)
+    {
+        if (newRole == user.Role) return;
+        _busy = true;
+        _status = $"Updating role for {user.DisplayName}...";
+        try
+        {
+            var ok = await Api.UpdateUserRoleAsync(user.Id, newRole);
+            _status = ok ? $"Role updated to {newRole}." : "Failed to update role.";
+            if (ok) await LoadAsync();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task SuspendAsync(ApiUser user)
+    {
+        _busy = true;
+        _status = $"Suspending {user.DisplayName}...";
+        try
+        {
+            var ok = await Api.SuspendUserAsync(user.Id);
+            _status = ok ? $"{user.DisplayName} suspended." : "Failed to suspend user.";
+            if (ok) await LoadAsync();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task RestoreAsync(ApiUser user)
+    {
+        _busy = true;
+        _status = $"Restoring {user.DisplayName}...";
+        try
+        {
+            var ok = await Api.RestoreUserAsync(user.Id);
+            _status = ok ? $"{user.DisplayName} restored." : "Failed to restore user.";
+            if (ok) await LoadAsync();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task DeleteUserAsync(ApiUser user)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm",
+            $"Delete {user.DisplayName} ({user.LoginName})?\nTheir devices will remain but will be unauthorized.");
+        if (!confirmed) return;
+
+        _busy = true;
+        _status = $"Deleting {user.DisplayName}...";
+        try
+        {
+            var ok = await Api.DeleteUserAsync(user.Id);
+            _status = ok ? $"{user.DisplayName} deleted." : "Failed to delete user.";
+            if (ok) await LoadAsync();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task InviteAsync()
+    {
+        var email = _inviteEmail.Trim();
+        if (string.IsNullOrWhiteSpace(email)) return;
+        _busy = true;
+        _status = $"Inviting {email}...";
+        try
+        {
+            var ok = await Api.CreateUserInviteAsync(email, _inviteRole);
+            _status = ok ? $"Invite sent to {email}." : "Failed to send invite.";
+            if (ok)
+            {
+                _inviteEmail = "";
+                await LoadAsync();
+            }
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task ResendInviteAsync(ApiUserInvite invite)
+    {
+        _busy = true;
+        _status = $"Resending invite to {invite.Email}...";
+        try
+        {
+            var ok = await Api.ResendUserInviteAsync(invite.Id);
+            _status = ok ? $"Invite resent to {invite.Email}." : "Failed to resend invite.";
+            if (ok) await LoadAsync();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task DeleteInviteAsync(ApiUserInvite invite)
+    {
+        _busy = true;
+        _status = $"Cancelling invite for {invite.Email}...";
+        try
+        {
+            var ok = await Api.DeleteUserInviteAsync(invite.Id);
+            _status = ok ? "Invite cancelled." : "Failed to cancel invite.";
+            if (ok) await LoadAsync();
         }
         finally { _busy = false; }
     }
