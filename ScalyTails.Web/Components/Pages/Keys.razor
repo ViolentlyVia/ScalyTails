@@ -2,16 +2,217 @@
 @rendermode InteractiveServer
 @inject ITailscaleApiService Api
 @inject IAppSettingsService AppSettings
+@inject IJSRuntime JS
 
 <PageTitle>Keys — ScalyTails</PageTitle>
 
-<MudText Typo="Typo.h5" Class="mb-4">Keys</MudText>
+<MudStack Spacing="4">
 
-@if (!Api.IsConfigured)
-{
-    <MudAlert Severity="Severity.Warning">No API key configured. Go to Settings to add one.</MudAlert>
-}
-else
-{
-    <MudAlert Severity="Severity.Info">Keys page — coming soon.</MudAlert>
+    <!-- Header -->
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.Key" Color="Color.Primary" />
+            <MudText Typo="Typo.h5">Auth Keys</MudText>
+            @if (!string.IsNullOrWhiteSpace(_status))
+            {
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">@_status</MudText>
+            }
+        </MudStack>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Refresh"
+                   OnClick="LoadAsync" Disabled="_busy">
+            Load
+        </MudButton>
+    </MudStack>
+
+    <!-- No API key warning -->
+    @if (!Api.IsConfigured)
+    {
+        <MudAlert Severity="Severity.Warning" Icon="@Icons.Material.Filled.Warning">
+            API key required. Go to <MudLink Href="/settings">Settings</MudLink> to add one.
+        </MudAlert>
+    }
+
+    <!-- Create form -->
+    <MudCard>
+        <MudCardContent>
+            <MudText Typo="Typo.overline" Class="mb-3">Create New Key</MudText>
+            <MudStack Spacing="3">
+                <MudTextField @bind-Value="_newDescription" Label="Description (optional)"
+                              Variant="Variant.Outlined" Disabled="_busy" />
+                <MudStack Row="true" Spacing="4">
+                    <MudCheckBox @bind-Value="_newReusable" Label="Reusable" Disabled="_busy" />
+                    <MudCheckBox @bind-Value="_newEphemeral" Label="Ephemeral" Disabled="_busy" />
+                    <MudCheckBox @bind-Value="_newPreauthorized" Label="Preauthorized" Disabled="_busy" />
+                </MudStack>
+                <div>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Add"
+                               OnClick="CreateAsync" Disabled="_busy || !Api.IsConfigured">
+                        Create Key
+                    </MudButton>
+                </div>
+            </MudStack>
+        </MudCardContent>
+    </MudCard>
+
+    <!-- Newly created key — only shown immediately after creation -->
+    @if (!string.IsNullOrWhiteSpace(_createdKeyValue))
+    {
+        <MudAlert Severity="Severity.Success" Icon="@Icons.Material.Filled.Warning" NoIcon="false">
+            <MudStack Spacing="2">
+                <MudText><strong>Copy this key now — it will not be shown again.</strong></MudText>
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                    <MudTextField Value="_createdKeyValue" ReadOnly="true"
+                                  Variant="Variant.Outlined"
+                                  Style="font-family: monospace; font-size: 0.8rem; flex: 1;" />
+                    <MudTooltip Text="@(_copied ? "Copied!" : "Copy to clipboard")">
+                        <MudIconButton Icon="@(_copied ? Icons.Material.Filled.Check : Icons.Material.Filled.ContentCopy)"
+                                       Color="@(_copied ? Color.Success : Color.Default)"
+                                       OnClick="CopyKeyAsync" />
+                    </MudTooltip>
+                </MudStack>
+            </MudStack>
+        </MudAlert>
+    }
+
+    <!-- Keys table -->
+    <MudTable Items="_keys" Dense="true" Hover="true" Loading="_busy"
+              SortLabel="Sort" Elevation="1"
+>
+        <NoRecordsContent>
+            <MudText Class="mud-text-secondary pa-4">@(_loaded ? "No keys found." : "Click Load to fetch keys.")</MudText>
+        </NoRecordsContent>
+        <HeaderContent>
+            <MudTh><MudTableSortLabel SortBy="new Func<ApiAuthKey, object>(k => k.StatusDisplay)">Status</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<ApiAuthKey, object>(k => k.Description)">Description</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<ApiAuthKey, object>(k => k.Created ?? DateTime.MinValue)" InitialDirection="SortDirection.Descending">Created</MudTableSortLabel></MudTh>
+            <MudTh>Flags</MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<ApiAuthKey, object>(k => k.ExpiryDisplay)">Expires</MudTableSortLabel></MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>
+                <MudChip T="string" Size="Size.Small"
+                         Color="@(context.IsActive ? Color.Success : Color.Error)"
+                         Variant="Variant.Filled">
+                    @context.StatusDisplay
+                </MudChip>
+            </MudTd>
+            <MudTd>@(string.IsNullOrWhiteSpace(context.Description) ? "—" : context.Description)</MudTd>
+            <MudTd Style="font-size:0.8rem">@(context.Created?.ToLocalTime().ToString("yyyy-MM-dd") ?? "—")</MudTd>
+            <MudTd>
+                <MudStack Row="true" Spacing="1">
+                    @if (context.Capabilities?.Devices?.Create?.Reusable == true)
+                    {
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">Reusable</MudChip>
+                    }
+                    @if (context.Capabilities?.Devices?.Create?.Ephemeral == true)
+                    {
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">Ephemeral</MudChip>
+                    }
+                    @if (context.Capabilities?.Devices?.Create?.Preauthorized == true)
+                    {
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">Preauth</MudChip>
+                    }
+                </MudStack>
+            </MudTd>
+            <MudTd Style="font-size:0.8rem">@context.ExpiryDisplay</MudTd>
+            <MudTd>
+                <MudTooltip Text="Revoke key">
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                   Color="Color.Error" Size="Size.Small"
+                                   Disabled="_busy || !context.IsActive"
+                                   OnClick="() => DeleteAsync(context)" />
+                </MudTooltip>
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+
+</MudStack>
+
+@code {
+    private List<ApiAuthKey> _keys = [];
+    private bool _busy;
+    private bool _loaded;
+    private string _status = "";
+
+    private string _newDescription = "";
+    private bool _newReusable;
+    private bool _newEphemeral;
+    private bool _newPreauthorized = true;
+
+    private string _createdKeyValue = "";
+    private bool _copied;
+
+    private async Task LoadAsync()
+    {
+        if (!Api.IsConfigured) { _status = "No API key configured."; return; }
+        _busy = true;
+        _status = "Loading…";
+        try
+        {
+            var result = await Api.GetKeysAsync();
+            if (!result.Success) { _status = $"Error: {result.Error}"; return; }
+            _keys = (result.Data?.Keys ?? []).OrderByDescending(k => k.Created).ToList();
+            _loaded = true;
+            _status = "";
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task CreateAsync()
+    {
+        _busy = true;
+        _createdKeyValue = "";
+        _copied = false;
+        try
+        {
+            var request = new CreateKeyRequest
+            {
+                Description = _newDescription.Trim(),
+                Capabilities = new ApiKeyCapabilities
+                {
+                    Devices = new ApiKeyDeviceCapabilities
+                    {
+                        Create = new ApiKeyCreateParams
+                        {
+                            Reusable      = _newReusable,
+                            Ephemeral     = _newEphemeral,
+                            Preauthorized = _newPreauthorized,
+                        }
+                    }
+                }
+            };
+
+            var result = await Api.CreateKeyAsync(request);
+            if (!result.Success) { _status = $"Failed to create key: {result.Error}"; return; }
+
+            _createdKeyValue = result.Data?.Key ?? "";
+            _status = "Key created.";
+            _newDescription = "";
+            await LoadAsync();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task DeleteAsync(ApiAuthKey key)
+    {
+        _busy = true;
+        try
+        {
+            var ok = await Api.DeleteKeyAsync(key.Id);
+            _status = ok ? "Key revoked." : "Failed to revoke key.";
+            if (ok) await LoadAsync();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task CopyKeyAsync()
+    {
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", _createdKeyValue);
+        _copied = true;
+        await Task.Delay(2000);
+        _copied = false;
+    }
 }
