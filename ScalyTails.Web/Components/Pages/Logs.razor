@@ -1,0 +1,17 @@
+@page "/logs"
+@rendermode InteractiveServer
+@inject ITailscaleApiService Api
+@inject IAppSettingsService AppSettings
+
+<PageTitle>Logs — ScalyTails</PageTitle>
+
+<MudText Typo="Typo.h5" Class="mb-4">Logs</MudText>
+
+@if (!Api.IsConfigured)
+{
+    <MudAlert Severity="Severity.Warning">No API key configured. Go to Settings to add one.</MudAlert>
+}
+else
+{
+    <MudAlert Severity="Severity.Info">Logs page — coming soon.</MudAlert>
+}

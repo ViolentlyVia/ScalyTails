@@ -1,0 +1,17 @@
+@page "/dns"
+@rendermode InteractiveServer
+@inject ITailscaleApiService Api
+@inject IAppSettingsService AppSettings
+
+<PageTitle>DNS — ScalyTails</PageTitle>
+
+<MudText Typo="Typo.h5" Class="mb-4">DNS</MudText>
+
+@if (!Api.IsConfigured)
+{
+    <MudAlert Severity="Severity.Warning">No API key configured. Go to Settings to add one.</MudAlert>
+}
+else
+{
+    <MudAlert Severity="Severity.Info">DNS page — coming soon.</MudAlert>
+}
