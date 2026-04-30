@@ -1,41 +1,34 @@
 ﻿@page "/policy"
+@using System.Text.Json
+@using System.Text.Json.Nodes
 @inject ITailscaleApiService Api
+@inject IJSRuntime JS
 
-<PageTitle>Policy â€” ScalyTails</PageTitle>
+<PageTitle>Policy — ScalyTails</PageTitle>
 
 <MudStack Spacing="4">
 
-    <!-- Header -->
     <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
             <MudIcon Icon="@Icons.Material.Filled.Policy" Color="Color.Primary" />
             <MudText Typo="Typo.h5">Policy</MudText>
             @if (!string.IsNullOrWhiteSpace(_status))
             {
-                <MudText Typo="Typo.caption" Class="@(_statusError ? "mud-error-text" : "mud-text-secondary")">
-                    @_status
-                </MudText>
+                <MudText Typo="Typo.caption" Class="@(_statusError ? "mud-error-text" : "mud-text-secondary")">@_status</MudText>
             }
         </MudStack>
         <MudStack Row="true" Spacing="2">
             @if (_isDirty)
             {
-                <MudButton Variant="Variant.Outlined" Color="Color.Default"
-                           StartIcon="@Icons.Material.Filled.Undo"
-                           OnClick="Revert" Disabled="_busy">
-                    Revert
-                </MudButton>
+                <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Undo"
+                           OnClick="Revert" Disabled="_busy">Revert</MudButton>
                 <MudButton Variant="Variant.Filled" Color="Color.Success"
                            StartIcon="@Icons.Material.Filled.Save"
-                           OnClick="SaveAsync" Disabled="_busy">
-                    Save
-                </MudButton>
+                           OnClick="SaveAsync" Disabled="_busy">Save</MudButton>
             }
             <MudButton Variant="Variant.Filled" Color="Color.Primary"
                        StartIcon="@Icons.Material.Filled.Refresh"
-                       OnClick="LoadAsync" Disabled="_busy">
-                Load
-            </MudButton>
+                       OnClick="LoadAsync" Disabled="_busy">Load</MudButton>
         </MudStack>
     </MudStack>
 
@@ -48,94 +41,679 @@
 
     @if (_isDirty)
     {
-        <MudAlert Severity="Severity.Warning" Dense="true">Unsaved changes.</MudAlert>
+        <MudAlert Severity="Severity.Warning" Dense="true">Unsaved changes — click Save to apply.</MudAlert>
     }
 
-    <!-- JSON editor -->
-    <MudTextField @bind-Value="_policyText"
-                  Label="ACL Policy (JSON)"
-                  Variant="Variant.Outlined"
-                  Lines="30"
-                  Style="font-family: monospace; font-size: 0.82rem;"
-                  Disabled="_busy || !Api.IsConfigured"
-                  Immediate="true"
-                  OnKeyUp="OnTextChanged" />
+    <MudTabs Elevation="1" Rounded="true" ApplyEffectsToContainer="true" Color="Color.Primary">
+
+        <MudTabPanel Class="pa-4" Text="ACL Rules" Icon="@Icons.Material.Filled.Rule">
+            <MudStack Spacing="2">
+                @if (_acls.Count == 0 && _loaded)
+                {
+                    <MudText Class="mud-text-secondary">No ACL rules defined. Add one below.</MudText>
+                }
+                @foreach (var (rule, idx) in _acls.Select((r, i) => (r, i)))
+                {
+                    <MudPaper Outlined="true" Class="pa-3">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Spacing="2">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3" Style="flex:1;flex-wrap:wrap">
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Filled"
+                                         Color="@(rule.Action == "accept" ? Color.Success : Color.Error)">
+                                    @rule.Action.ToUpper()
+                                </MudChip>
+                                <MudStack Spacing="0">
+                                    <MudText Typo="Typo.caption" Class="mud-text-secondary">FROM</MudText>
+                                    <MudStack Row="true" Spacing="1" Style="flex-wrap:wrap">
+                                        @foreach (var src in rule.Src)
+                                        {
+                                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Style="font-family:monospace">@src</MudChip>
+                                        }
+                                    </MudStack>
+                                </MudStack>
+                                <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" Class="mud-text-secondary" />
+                                <MudStack Spacing="0">
+                                    <MudText Typo="Typo.caption" Class="mud-text-secondary">TO</MudText>
+                                    <MudStack Row="true" Spacing="1" Style="flex-wrap:wrap">
+                                        @foreach (var dst in rule.Dst)
+                                        {
+                                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Style="font-family:monospace">@dst</MudChip>
+                                        }
+                                    </MudStack>
+                                </MudStack>
+                            </MudStack>
+                            <MudStack Row="true" Spacing="0">
+                                <MudTooltip Text="Edit (loads rule into form below)">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                                   OnClick="() => EditAcl(idx)" />
+                                </MudTooltip>
+                                <MudTooltip Text="Delete">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                                   OnClick="() => { _acls.RemoveAt(idx); MarkDirty(); }" />
+                                </MudTooltip>
+                            </MudStack>
+                        </MudStack>
+                    </MudPaper>
+                }
+
+                <MudCard Class="mt-2">
+                    <MudCardContent>
+                        <MudText Typo="Typo.overline" Class="mb-2">@(_editingAcl ? "Edit Rule" : "Add Rule")</MudText>
+                        <MudGrid Spacing="2">
+                            <MudItem xs="12" sm="2">
+                                <MudSelect @bind-Value="_newAclAction" Label="Action"
+                                           Variant="Variant.Outlined" Margin="Margin.Dense">
+                                    <MudSelectItem Value="@("accept")">Accept</MudSelectItem>
+                                    <MudSelectItem Value="@("deny")">Deny</MudSelectItem>
+                                </MudSelect>
+                            </MudItem>
+                            <MudItem xs="12" sm="5">
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary">Source</MudText>
+                                <MudStack Row="true" Spacing="1" Style="flex-wrap:wrap;margin-bottom:4px">
+                                    @foreach (var s in _newAclSrcs.ToList())
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" OnClose="_ => _newAclSrcs.Remove(s)"
+                                                 Style="font-family:monospace">@s</MudChip>
+                                    }
+                                </MudStack>
+                                <MudStack Row="true" Spacing="1">
+                                    <MudTextField @bind-Value="_newAclSrcInput" Placeholder="e.g. group:devs or *"
+                                                  Variant="Variant.Outlined" Margin="Margin.Dense" Style="font-family:monospace;flex:1"
+                                                  OnKeyDown="OnAclSrcKeyDown" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Primary" Size="Size.Small"
+                                                   OnClick="AddAclSrcChip" />
+                                </MudStack>
+                            </MudItem>
+                            <MudItem xs="12" sm="5">
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary">Destination</MudText>
+                                <MudStack Row="true" Spacing="1" Style="flex-wrap:wrap;margin-bottom:4px">
+                                    @foreach (var d in _newAclDsts.ToList())
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" OnClose="_ => _newAclDsts.Remove(d)"
+                                                 Style="font-family:monospace">@d</MudChip>
+                                    }
+                                </MudStack>
+                                <MudStack Row="true" Spacing="1">
+                                    <MudTextField @bind-Value="_newAclDstInput" Placeholder="e.g. *:* or server:22"
+                                                  Variant="Variant.Outlined" Margin="Margin.Dense" Style="font-family:monospace;flex:1"
+                                                  OnKeyDown="OnAclDstKeyDown" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Primary" Size="Size.Small"
+                                                   OnClick="AddAclDstChip" />
+                                </MudStack>
+                            </MudItem>
+                        </MudGrid>
+                    </MudCardContent>
+                    <MudCardActions>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.Add"
+                                   Disabled="_newAclSrcs.Count == 0 || _newAclDsts.Count == 0"
+                                   OnClick="CommitAcl">
+                            @(_editingAcl ? "Save Rule" : "Add Rule")
+                        </MudButton>
+                        @if (_editingAcl)
+                        {
+                            <MudButton Variant="Variant.Text" OnClick="CancelEditAcl">Cancel</MudButton>
+                        }
+                    </MudCardActions>
+                </MudCard>
+            </MudStack>
+        </MudTabPanel>
+
+        <MudTabPanel Class="pa-4" Text="Groups" Icon="@Icons.Material.Filled.Groups">
+            <MudStack Spacing="3">
+                @if (_groups.Count == 0 && _loaded)
+                {
+                    <MudText Class="mud-text-secondary">No groups defined.</MudText>
+                }
+                @foreach (var kvp in _groups.ToList())
+                {
+                    <MudPaper Outlined="true" Class="pa-3">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-2">
+                            <MudText Style="font-family:monospace;font-weight:600">@kvp.Key</MudText>
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                                           OnClick="() => { _groups.Remove(kvp.Key); _groupMemberInput.Remove(kvp.Key); MarkDirty(); }" />
+                        </MudStack>
+                        <MudStack Row="true" Spacing="1" Style="flex-wrap:wrap;margin-bottom:8px">
+                            @foreach (var member in kvp.Value.ToList())
+                            {
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
+                                         OnClose="_ => { _groups[kvp.Key].Remove(member); MarkDirty(); }"
+                                         Style="font-family:monospace">@member</MudChip>
+                            }
+                        </MudStack>
+                        <MudStack Row="true" Spacing="1">
+                            <MudTextField Value="@(_groupMemberInput.GetValueOrDefault(kvp.Key, ""))"
+                                          ValueChanged="(string v) => _groupMemberInput[kvp.Key] = v"
+                                          Placeholder="user@example.com or tag:server"
+                                          Variant="Variant.Outlined" Margin="Margin.Dense"
+                                          Style="font-family:monospace;flex:1"
+                                          OnKeyDown="@(e => { if (e.Key == "Enter") AddGroupMember(kvp.Key); })" />
+                            <MudIconButton Icon="@Icons.Material.Filled.PersonAdd" Color="Color.Primary" Size="Size.Small"
+                                           OnClick="() => AddGroupMember(kvp.Key)" />
+                        </MudStack>
+                    </MudPaper>
+                }
+                <MudCard>
+                    <MudCardContent>
+                        <MudText Typo="Typo.overline" Class="mb-2">Add Group</MudText>
+                        <MudTextField @bind-Value="_newGroupName" Label="Group name (e.g. devs)"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense" Style="font-family:monospace" />
+                    </MudCardContent>
+                    <MudCardActions>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.Add"
+                                   Disabled="string.IsNullOrWhiteSpace(_newGroupName)"
+                                   OnClick="AddGroup">Add Group</MudButton>
+                    </MudCardActions>
+                </MudCard>
+            </MudStack>
+        </MudTabPanel>
+
+        <MudTabPanel Class="pa-4" Text="Host Aliases" Icon="@Icons.Material.Filled.Dns">
+            <MudStack Spacing="3">
+                @if (_hosts.Count > 0)
+                {
+                    <MudSimpleTable Dense="true" Striped="true">
+                        <thead><tr><th>Alias</th><th>IP / CIDR</th><th></th></tr></thead>
+                        <tbody>
+                            @foreach (var kvp in _hosts.ToList())
+                            {
+                                <tr>
+                                    <td style="font-family:monospace;font-weight:600">@kvp.Key</td>
+                                    <td style="font-family:monospace">@kvp.Value</td>
+                                    <td>
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                                                       OnClick="() => { _hosts.Remove(kvp.Key); MarkDirty(); }" />
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                }
+                else if (_loaded) { <MudText Class="mud-text-secondary">No host aliases defined.</MudText> }
+                <MudCard>
+                    <MudCardContent>
+                        <MudText Typo="Typo.overline" Class="mb-2">Add Host Alias</MudText>
+                        <MudGrid Spacing="2">
+                            <MudItem xs="12" sm="4">
+                                <MudTextField @bind-Value="_newHostAlias" Label="Alias name"
+                                              Variant="Variant.Outlined" Margin="Margin.Dense" Style="font-family:monospace" />
+                            </MudItem>
+                            <MudItem xs="12" sm="8">
+                                <MudTextField @bind-Value="_newHostCidr" Label="IP address or CIDR"
+                                              Variant="Variant.Outlined" Margin="Margin.Dense" Style="font-family:monospace" />
+                            </MudItem>
+                        </MudGrid>
+                    </MudCardContent>
+                    <MudCardActions>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.Add"
+                                   Disabled="string.IsNullOrWhiteSpace(_newHostAlias) || string.IsNullOrWhiteSpace(_newHostCidr)"
+                                   OnClick="AddHost">Add Alias</MudButton>
+                    </MudCardActions>
+                </MudCard>
+            </MudStack>
+        </MudTabPanel>
+
+        <MudTabPanel Class="pa-4" Text="Tag Owners" Icon="@Icons.Material.Filled.Label">
+            <MudStack Spacing="3">
+                @if (_tagOwners.Count == 0 && _loaded)
+                {
+                    <MudText Class="mud-text-secondary">No tags defined.</MudText>
+                }
+                @foreach (var kvp in _tagOwners.ToList())
+                {
+                    <MudPaper Outlined="true" Class="pa-3">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-2">
+                            <MudText Style="font-family:monospace;font-weight:600">@kvp.Key</MudText>
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                                           OnClick="() => { _tagOwners.Remove(kvp.Key); _tagOwnerInput.Remove(kvp.Key); MarkDirty(); }" />
+                        </MudStack>
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary mb-1">Owners</MudText>
+                        <MudStack Row="true" Spacing="1" Style="flex-wrap:wrap;margin-bottom:8px">
+                            @foreach (var owner in kvp.Value.ToList())
+                            {
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
+                                         OnClose="_ => { _tagOwners[kvp.Key].Remove(owner); MarkDirty(); }"
+                                         Style="font-family:monospace">@owner</MudChip>
+                            }
+                        </MudStack>
+                        <MudStack Row="true" Spacing="1">
+                            <MudTextField Value="@(_tagOwnerInput.GetValueOrDefault(kvp.Key, ""))"
+                                          ValueChanged="(string v) => _tagOwnerInput[kvp.Key] = v"
+                                          Placeholder="user@example.com or group:admins"
+                                          Variant="Variant.Outlined" Margin="Margin.Dense"
+                                          Style="font-family:monospace;flex:1"
+                                          OnKeyDown="@(e => { if (e.Key == "Enter") AddTagOwner(kvp.Key); })" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Primary" Size="Size.Small"
+                                           OnClick="() => AddTagOwner(kvp.Key)" />
+                        </MudStack>
+                    </MudPaper>
+                }
+                <MudCard>
+                    <MudCardContent>
+                        <MudText Typo="Typo.overline" Class="mb-2">Add Tag</MudText>
+                        <MudTextField @bind-Value="_newTagName" Label="Tag name (e.g. server or tag:server)"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense" Style="font-family:monospace" />
+                    </MudCardContent>
+                    <MudCardActions>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.Add"
+                                   Disabled="string.IsNullOrWhiteSpace(_newTagName)"
+                                   OnClick="AddTag">Add Tag</MudButton>
+                    </MudCardActions>
+                </MudCard>
+            </MudStack>
+        </MudTabPanel>
+
+        <MudTabPanel Class="pa-4" Text="SSH Rules" Icon="@Icons.Material.Filled.Terminal">
+            <MudStack Spacing="2">
+                @if (_sshRules.Count == 0 && _loaded)
+                {
+                    <MudText Class="mud-text-secondary">No SSH rules defined.</MudText>
+                }
+                @foreach (var (rule, idx) in _sshRules.Select((r, i) => (r, i)))
+                {
+                    <MudPaper Outlined="true" Class="pa-3">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Spacing="2">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3" Style="flex:1;flex-wrap:wrap">
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Filled"
+                                         Color="@(rule.Action == "accept" ? Color.Success : Color.Error)">
+                                    @rule.Action.ToUpper()
+                                </MudChip>
+                                <MudStack Spacing="0">
+                                    <MudText Typo="Typo.caption" Class="mud-text-secondary">FROM</MudText>
+                                    <MudStack Row="true" Spacing="1" Style="flex-wrap:wrap">
+                                        @foreach (var s in rule.Src) { <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Style="font-family:monospace">@s</MudChip> }
+                                    </MudStack>
+                                </MudStack>
+                                <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" Class="mud-text-secondary" />
+                                <MudStack Spacing="0">
+                                    <MudText Typo="Typo.caption" Class="mud-text-secondary">TO</MudText>
+                                    <MudStack Row="true" Spacing="1" Style="flex-wrap:wrap">
+                                        @foreach (var d in rule.Dst) { <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Style="font-family:monospace">@d</MudChip> }
+                                    </MudStack>
+                                </MudStack>
+                                <MudStack Spacing="0">
+                                    <MudText Typo="Typo.caption" Class="mud-text-secondary">AS USERS</MudText>
+                                    <MudStack Row="true" Spacing="1" Style="flex-wrap:wrap">
+                                        @foreach (var u in rule.Users) { <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Style="font-family:monospace">@u</MudChip> }
+                                    </MudStack>
+                                </MudStack>
+                            </MudStack>
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                           OnClick="() => { _sshRules.RemoveAt(idx); MarkDirty(); }" />
+                        </MudStack>
+                    </MudPaper>
+                }
+                <MudCard Class="mt-2">
+                    <MudCardContent>
+                        <MudText Typo="Typo.overline" Class="mb-2">Add SSH Rule</MudText>
+                        <MudGrid Spacing="2">
+                            <MudItem xs="12" sm="2">
+                                <MudSelect @bind-Value="_newSshAction" Label="Action" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                    <MudSelectItem Value="@("accept")">Accept</MudSelectItem>
+                                    <MudSelectItem Value="@("deny")">Deny</MudSelectItem>
+                                </MudSelect>
+                            </MudItem>
+                            <MudItem xs="12" sm="3">
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary">Source</MudText>
+                                <MudStack Row="true" Spacing="1" Style="flex-wrap:wrap;margin-bottom:4px">
+                                    @foreach (var s in _newSshSrcs.ToList()) { <MudChip T="string" Size="Size.Small" OnClose="_ => _newSshSrcs.Remove(s)" Style="font-family:monospace">@s</MudChip> }
+                                </MudStack>
+                                <MudStack Row="true" Spacing="1">
+                                    <MudTextField @bind-Value="_newSshSrcInput" Placeholder="group:devs" Variant="Variant.Outlined" Margin="Margin.Dense" Style="font-family:monospace;flex:1" OnKeyDown="OnSshSrcKeyDown" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" OnClick="AddSshSrcChip" />
+                                </MudStack>
+                            </MudItem>
+                            <MudItem xs="12" sm="3">
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary">Destination</MudText>
+                                <MudStack Row="true" Spacing="1" Style="flex-wrap:wrap;margin-bottom:4px">
+                                    @foreach (var d in _newSshDsts.ToList()) { <MudChip T="string" Size="Size.Small" OnClose="_ => _newSshDsts.Remove(d)" Style="font-family:monospace">@d</MudChip> }
+                                </MudStack>
+                                <MudStack Row="true" Spacing="1">
+                                    <MudTextField @bind-Value="_newSshDstInput" Placeholder="* or autogroup:self" Variant="Variant.Outlined" Margin="Margin.Dense" Style="font-family:monospace;flex:1" OnKeyDown="OnSshDstKeyDown" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" OnClick="AddSshDstChip" />
+                                </MudStack>
+                            </MudItem>
+                            <MudItem xs="12" sm="4">
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary">SSH Users</MudText>
+                                <MudStack Row="true" Spacing="1" Style="flex-wrap:wrap;margin-bottom:4px">
+                                    @foreach (var u in _newSshUsers.ToList()) { <MudChip T="string" Size="Size.Small" OnClose="_ => _newSshUsers.Remove(u)" Style="font-family:monospace">@u</MudChip> }
+                                </MudStack>
+                                <MudStack Row="true" Spacing="1">
+                                    <MudTextField @bind-Value="_newSshUserInput" Placeholder="root or autogroup:nonroot" Variant="Variant.Outlined" Margin="Margin.Dense" Style="font-family:monospace;flex:1" OnKeyDown="OnSshUserKeyDown" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" OnClick="AddSshUserChip" />
+                                </MudStack>
+                            </MudItem>
+                        </MudGrid>
+                    </MudCardContent>
+                    <MudCardActions>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.Add"
+                                   Disabled="_newSshSrcs.Count == 0 || _newSshDsts.Count == 0 || _newSshUsers.Count == 0"
+                                   OnClick="AddSshRule">Add SSH Rule</MudButton>
+                    </MudCardActions>
+                </MudCard>
+            </MudStack>
+        </MudTabPanel>
+
+        <MudTabPanel Class="pa-4" Text="Raw JSON" Icon="@Icons.Material.Filled.Code">
+            <MudStack Spacing="2">
+                <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                        Compiled output. Unknown top-level fields from the original policy are preserved.
+                    </MudText>
+                    <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.ContentCopy"
+                               OnClick="CopyJsonAsync">Copy</MudButton>
+                </MudStack>
+                <pre style="font-size:0.78rem;font-family:monospace;white-space:pre-wrap;background:rgba(0,0,0,0.15);padding:16px;border-radius:4px;margin:0">@(_loaded ? SerializePolicy() : "(load policy first)")</pre>
+            </MudStack>
+        </MudTabPanel>
+
+    </MudTabs>
 
 </MudStack>
 
 @code {
-    private string _policyText = "";
-    private string _savedText = "";
+    private class AclRule
+    {
+        public string Action { get; set; } = "accept";
+        public List<string> Src { get; set; } = [];
+        public List<string> Dst { get; set; } = [];
+    }
+
+    private class SshRule
+    {
+        public string Action { get; set; } = "accept";
+        public List<string> Src { get; set; } = [];
+        public List<string> Dst { get; set; } = [];
+        public List<string> Users { get; set; } = [];
+    }
+
+    private Dictionary<string, List<string>> _groups = new();
+    private Dictionary<string, string> _hosts = new();
+    private Dictionary<string, List<string>> _tagOwners = new();
+    private List<AclRule> _acls = [];
+    private List<SshRule> _sshRules = [];
+    private string _rawText = "{}";
+
+    private bool _editingAcl;
+    private string _newAclAction = "accept";
+    private List<string> _newAclSrcs = [];
+    private string _newAclSrcInput = "";
+    private List<string> _newAclDsts = [];
+    private string _newAclDstInput = "";
+
+    private string _newSshAction = "accept";
+    private List<string> _newSshSrcs = [];
+    private string _newSshSrcInput = "";
+    private List<string> _newSshDsts = [];
+    private string _newSshDstInput = "";
+    private List<string> _newSshUsers = [];
+    private string _newSshUserInput = "";
+
+    private string _newGroupName = "";
+    private Dictionary<string, string> _groupMemberInput = new();
+    private string _newHostAlias = "";
+    private string _newHostCidr = "";
+    private string _newTagName = "";
+    private Dictionary<string, string> _tagOwnerInput = new();
+
     private bool _isDirty;
     private bool _busy;
+    private bool _loaded;
     private string _status = "";
     private bool _statusError;
 
-    private void OnTextChanged()
+    private void MarkDirty() => _isDirty = true;
+
+    protected override async Task OnInitializedAsync()
     {
-        _isDirty = _policyText != _savedText;
+        if (Api.IsConfigured) await LoadAsync();
     }
 
     private async Task LoadAsync()
     {
-        if (!Api.IsConfigured) { _status = "No API key configured."; return; }
-        _busy = true;
-        _statusError = false;
-        _status = "Loadingâ€¦";
+        if (!Api.IsConfigured) { _status = "No API key configured."; _statusError = true; return; }
+        _busy = true; _statusError = false; _status = "Loading...";
         try
         {
             var result = await Api.GetPolicyAsync();
-            if (!result.Success)
-            {
-                _status = $"Error: {result.Error}";
-                _statusError = true;
-                return;
-            }
-
-            var policy = result.Data ?? "";
-            try
-            {
-                var doc = System.Text.Json.JsonDocument.Parse(policy);
-                policy = System.Text.Json.JsonSerializer.Serialize(
-                    doc, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
-            }
-            catch { }
-
-            _savedText = policy;
-            _policyText = policy;
-            _isDirty = false;
-            _status = "";
+            if (!result.Success) { _status = $"Error: {result.Error}"; _statusError = true; return; }
+            ParsePolicy(result.Data ?? "{}");
+            _isDirty = false; _loaded = true; _status = "";
         }
         finally { _busy = false; }
+    }
+
+    private void ParsePolicy(string json)
+    {
+        _rawText = json;
+        if (string.IsNullOrWhiteSpace(json)) return;
+        try
+        {
+            var root = JsonNode.Parse(json)?.AsObject();
+            if (root is null) return;
+
+            _groups.Clear();
+            if (root["groups"] is JsonObject groups)
+                foreach (var (key, val) in groups)
+                    _groups[key] = val?.AsArray().Select(n => n?.GetValue<string>() ?? "").Where(s => s.Length > 0).ToList() ?? [];
+
+            _hosts.Clear();
+            if (root["hosts"] is JsonObject hosts)
+                foreach (var (key, val) in hosts)
+                    _hosts[key] = val?.GetValue<string>() ?? "";
+
+            _tagOwners.Clear();
+            if (root["tagOwners"] is JsonObject tagOwners)
+                foreach (var (key, val) in tagOwners)
+                    _tagOwners[key] = val?.AsArray().Select(n => n?.GetValue<string>() ?? "").Where(s => s.Length > 0).ToList() ?? [];
+
+            _acls.Clear();
+            if (root["acls"] is JsonArray acls)
+                foreach (var item in acls)
+                {
+                    var obj = item?.AsObject();
+                    if (obj is null) continue;
+                    _acls.Add(new AclRule
+                    {
+                        Action = obj["action"]?.GetValue<string>() ?? "accept",
+                        Src    = obj["src"]?.AsArray().Select(n => n?.GetValue<string>() ?? "").Where(s => s.Length > 0).ToList() ?? [],
+                        Dst    = obj["dst"]?.AsArray().Select(n => n?.GetValue<string>() ?? "").Where(s => s.Length > 0).ToList() ?? [],
+                    });
+                }
+
+            _sshRules.Clear();
+            if (root["ssh"] is JsonArray ssh)
+                foreach (var item in ssh)
+                {
+                    var obj = item?.AsObject();
+                    if (obj is null) continue;
+                    _sshRules.Add(new SshRule
+                    {
+                        Action = obj["action"]?.GetValue<string>() ?? "accept",
+                        Src    = obj["src"]?.AsArray().Select(n => n?.GetValue<string>() ?? "").Where(s => s.Length > 0).ToList() ?? [],
+                        Dst    = obj["dst"]?.AsArray().Select(n => n?.GetValue<string>() ?? "").Where(s => s.Length > 0).ToList() ?? [],
+                        Users  = obj["users"]?.AsArray().Select(n => n?.GetValue<string>() ?? "").Where(s => s.Length > 0).ToList() ?? [],
+                    });
+                }
+
+            _groupMemberInput.Clear();
+            foreach (var key in _groups.Keys) _groupMemberInput[key] = "";
+            _tagOwnerInput.Clear();
+            foreach (var key in _tagOwners.Keys) _tagOwnerInput[key] = "";
+        }
+        catch { }
+    }
+
+    private string SerializePolicy()
+    {
+        try
+        {
+            var root = (!string.IsNullOrWhiteSpace(_rawText)
+                ? JsonNode.Parse(_rawText)?.AsObject()
+                : null) ?? new JsonObject();
+
+            JsonArray ToArr(IEnumerable<string> items) =>
+                new([.. items.Select(s => (JsonNode?)JsonValue.Create(s))]);
+
+            if (_groups.Count > 0)
+            {
+                var g = new JsonObject();
+                foreach (var (k, v) in _groups) g[k] = ToArr(v);
+                root["groups"] = g;
+            }
+            else root.Remove("groups");
+
+            if (_hosts.Count > 0)
+            {
+                var h = new JsonObject();
+                foreach (var (k, v) in _hosts) h[k] = JsonValue.Create(v);
+                root["hosts"] = h;
+            }
+            else root.Remove("hosts");
+
+            if (_tagOwners.Count > 0)
+            {
+                var t = new JsonObject();
+                foreach (var (k, v) in _tagOwners) t[k] = ToArr(v);
+                root["tagOwners"] = t;
+            }
+            else root.Remove("tagOwners");
+
+            root["acls"] = new JsonArray([.. _acls.Select(r => (JsonNode?)new JsonObject
+            {
+                ["action"] = r.Action,
+                ["src"]    = ToArr(r.Src),
+                ["dst"]    = ToArr(r.Dst),
+            })]);
+
+            if (_sshRules.Count > 0)
+                root["ssh"] = new JsonArray([.. _sshRules.Select(r => (JsonNode?)new JsonObject
+                {
+                    ["action"] = r.Action,
+                    ["src"]    = ToArr(r.Src),
+                    ["dst"]    = ToArr(r.Dst),
+                    ["users"]  = ToArr(r.Users),
+                })]);
+            else root.Remove("ssh");
+
+            return JsonSerializer.Serialize(root, new JsonSerializerOptions { WriteIndented = true });
+        }
+        catch (Exception ex) { return $"// Serialization error: {ex.Message}"; }
     }
 
     private async Task SaveAsync()
     {
-        _busy = true;
-        _status = "Savingâ€¦";
-        _statusError = false;
+        _busy = true; _status = "Saving..."; _statusError = false;
         try
         {
-            var ok = await Api.SetPolicyAsync(_policyText);
-            if (ok)
-            {
-                _savedText = _policyText;
-                _isDirty = false;
-                _status = "Policy saved.";
-            }
-            else
-            {
-                _status = "Failed to save â€” check JSON syntax.";
-                _statusError = true;
-            }
+            var json = SerializePolicy();
+            var ok = await Api.SetPolicyAsync(json);
+            if (ok) { _rawText = json; _isDirty = false; _status = "Policy saved."; }
+            else { _status = "Save failed — the Tailscale API rejected the policy."; _statusError = true; }
         }
         finally { _busy = false; }
     }
 
-    private void Revert()
+    private void Revert() { ParsePolicy(_rawText); _isDirty = false; _status = ""; }
+
+    // ACL helpers
+    private void CommitAcl()
     {
-        _policyText = _savedText;
-        _isDirty = false;
-        _status = "";
+        _acls.Add(new AclRule { Action = _newAclAction, Src = [.._newAclSrcs], Dst = [.._newAclDsts] });
+        _newAclSrcs.Clear(); _newAclDsts.Clear();
+        _newAclSrcInput = ""; _newAclDstInput = "";
+        _editingAcl = false;
+        MarkDirty();
     }
+
+    private void EditAcl(int idx)
+    {
+        var rule = _acls[idx];
+        _newAclAction = rule.Action;
+        _newAclSrcs = [.. rule.Src];
+        _newAclDsts = [.. rule.Dst];
+        _newAclSrcInput = ""; _newAclDstInput = "";
+        _acls.RemoveAt(idx);
+        _editingAcl = true;
+        MarkDirty();
+    }
+
+    private void CancelEditAcl()
+    {
+        _newAclSrcs.Clear(); _newAclDsts.Clear();
+        _newAclSrcInput = ""; _newAclDstInput = "";
+        _editingAcl = false;
+    }
+
+    private void AddAclSrcChip() { if (!string.IsNullOrWhiteSpace(_newAclSrcInput)) { _newAclSrcs.Add(_newAclSrcInput.Trim()); _newAclSrcInput = ""; } }
+    private void AddAclDstChip() { if (!string.IsNullOrWhiteSpace(_newAclDstInput)) { _newAclDsts.Add(_newAclDstInput.Trim()); _newAclDstInput = ""; } }
+    private void OnAclSrcKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") AddAclSrcChip(); }
+    private void OnAclDstKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") AddAclDstChip(); }
+
+    // Group helpers
+    private void AddGroup()
+    {
+        var name = _newGroupName.Trim();
+        if (!name.StartsWith("group:")) name = "group:" + name;
+        if (string.IsNullOrWhiteSpace(name) || _groups.ContainsKey(name)) return;
+        _groups[name] = []; _groupMemberInput[name] = "";
+        _newGroupName = ""; MarkDirty();
+    }
+
+    private void AddGroupMember(string key)
+    {
+        if (!_groupMemberInput.TryGetValue(key, out var input)) return;
+        var v = input.Trim();
+        if (string.IsNullOrWhiteSpace(v) || _groups[key].Contains(v)) return;
+        _groups[key].Add(v); _groupMemberInput[key] = ""; MarkDirty();
+    }
+
+    // Host helpers
+    private void AddHost()
+    {
+        var alias = _newHostAlias.Trim(); var cidr = _newHostCidr.Trim();
+        if (string.IsNullOrWhiteSpace(alias) || string.IsNullOrWhiteSpace(cidr)) return;
+        _hosts[alias] = cidr; _newHostAlias = ""; _newHostCidr = ""; MarkDirty();
+    }
+
+    // Tag helpers
+    private void AddTag()
+    {
+        var name = _newTagName.Trim();
+        if (!name.StartsWith("tag:")) name = "tag:" + name;
+        if (string.IsNullOrWhiteSpace(name) || _tagOwners.ContainsKey(name)) return;
+        _tagOwners[name] = []; _tagOwnerInput[name] = "";
+        _newTagName = ""; MarkDirty();
+    }
+
+    private void AddTagOwner(string key)
+    {
+        if (!_tagOwnerInput.TryGetValue(key, out var input)) return;
+        var v = input.Trim();
+        if (string.IsNullOrWhiteSpace(v) || _tagOwners[key].Contains(v)) return;
+        _tagOwners[key].Add(v); _tagOwnerInput[key] = ""; MarkDirty();
+    }
+
+    // SSH helpers
+    private void AddSshSrcChip()  { if (!string.IsNullOrWhiteSpace(_newSshSrcInput))  { _newSshSrcs.Add(_newSshSrcInput.Trim());   _newSshSrcInput  = ""; } }
+    private void AddSshDstChip()  { if (!string.IsNullOrWhiteSpace(_newSshDstInput))  { _newSshDsts.Add(_newSshDstInput.Trim());   _newSshDstInput  = ""; } }
+    private void AddSshUserChip() { if (!string.IsNullOrWhiteSpace(_newSshUserInput)) { _newSshUsers.Add(_newSshUserInput.Trim()); _newSshUserInput = ""; } }
+    private void OnSshSrcKeyDown(KeyboardEventArgs  e) { if (e.Key == "Enter") AddSshSrcChip();  }
+    private void OnSshDstKeyDown(KeyboardEventArgs  e) { if (e.Key == "Enter") AddSshDstChip();  }
+    private void OnSshUserKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") AddSshUserChip(); }
+
+    private void AddSshRule()
+    {
+        _sshRules.Add(new SshRule { Action = _newSshAction, Src = [.._newSshSrcs], Dst = [.._newSshDsts], Users = [.._newSshUsers] });
+        _newSshSrcs.Clear(); _newSshDsts.Clear(); _newSshUsers.Clear();
+        _newSshSrcInput = ""; _newSshDstInput = ""; _newSshUserInput = "";
+        MarkDirty();
+    }
+
+    private async Task CopyJsonAsync() =>
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", SerializePolicy());
 }
