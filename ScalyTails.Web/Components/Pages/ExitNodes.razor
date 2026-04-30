@@ -1,9 +1,221 @@
-@page "/exit-nodes"
+﻿@page "/exit-nodes"
 @rendermode InteractiveServer
 @inject ITailscaleService Tailscale
 
 <PageTitle>Exit Nodes — ScalyTails</PageTitle>
 
-<MudText Typo="Typo.h5" Class="mb-4">Exit Nodes</MudText>
+<MudStack Spacing="4">
 
-<MudAlert Severity="Severity.Info">Exit Nodes page — coming soon.</MudAlert>
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.ExitToApp" Color="Color.Primary" />
+            <MudText Typo="Typo.h5">Exit Nodes</MudText>
+            @if (!string.IsNullOrWhiteSpace(_status))
+            {
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">@_status</MudText>
+            }
+        </MudStack>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Refresh"
+                   OnClick="LoadAsync" Disabled="_busy">
+            Refresh
+        </MudButton>
+    </MudStack>
+
+    <!-- Active exit node banner -->
+    @if (_activeNode is not null)
+    {
+        <MudAlert Severity="Severity.Info" Icon="@Icons.Material.Filled.VpnKey">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudText>Exit node active — using <b>@_activeNode.DisplayName</b> (@_activeNode.PrimaryIP)</MudText>
+                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Inherit"
+                           OnClick="ClearAsync" Disabled="_busy">
+                    Disconnect
+                </MudButton>
+            </MudStack>
+        </MudAlert>
+    }
+
+    <!-- LAN access toggle (only relevant when an exit node is active) -->
+    <MudCard>
+        <MudCardContent>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                <MudStack>
+                    <MudText Typo="Typo.subtitle1"><b>Allow LAN Access</b></MudText>
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                        When using an exit node, still allow access to devices on your local network.
+                    </MudText>
+                </MudStack>
+                <MudSwitch Value="_allowLan" T="bool"
+                           Color="Color.Primary"
+                           Disabled="_busy || !_loaded"
+                           ValueChanged="async v => await ToggleLanAsync(v)" />
+            </MudStack>
+        </MudCardContent>
+    </MudCard>
+
+    <!-- Advertise this machine as exit node -->
+    <MudCard>
+        <MudCardContent>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                <MudStack>
+                    <MudText Typo="Typo.subtitle1"><b>Advertise as Exit Node</b></MudText>
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                        Allow other tailnet members to route their traffic through this machine.
+                    </MudText>
+                </MudStack>
+                <MudSwitch Value="_advertiseExitNode" T="bool"
+                           Color="Color.Primary"
+                           Disabled="_busy || !_loaded"
+                           ValueChanged="async v => await ToggleAdvertiseAsync(v)" />
+            </MudStack>
+        </MudCardContent>
+    </MudCard>
+
+    <!-- Available exit nodes -->
+    <MudTable Items="_exitNodes" Dense="true" Hover="true" Loading="_busy" Elevation="1">
+        <NoRecordsContent>
+            <MudText Class="mud-text-secondary pa-4">No exit nodes found on your tailnet.</MudText>
+        </NoRecordsContent>
+        <ToolBarContent>
+            <MudText Typo="Typo.overline">Available Exit Nodes</MudText>
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh></MudTh>
+            <MudTh>Name</MudTh>
+            <MudTh>IP</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>
+                <MudIcon Icon="@Icons.Material.Filled.Circle"
+                         Size="Size.Small"
+                         Color="@(context.Online ? Color.Success : Color.Default)"
+                         Style="font-size:0.6rem" />
+            </MudTd>
+            <MudTd Style="font-weight:500">@context.DisplayName</MudTd>
+            <MudTd Style="font-family:monospace;font-size:0.85rem">@context.PrimaryIP</MudTd>
+            <MudTd>
+                @if (context.ExitNode)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled">Active</MudChip>
+                }
+            </MudTd>
+            <MudTd>
+                @if (!context.ExitNode)
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                               Disabled="_busy || !context.Online"
+                               OnClick="() => UseExitNodeAsync(context)">
+                        Use
+                    </MudButton>
+                }
+                else
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
+                               Disabled="_busy"
+                               OnClick="ClearAsync">
+                        Stop
+                    </MudButton>
+                }
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+
+</MudStack>
+
+@code {
+    private List<TailscalePeer> _exitNodes = [];
+    private TailscalePeer? _activeNode;
+    private bool _allowLan;
+    private bool _advertiseExitNode;
+    private bool _busy;
+    private bool _loaded;
+    private string _status = "";
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _busy = true;
+        _status = "Loading...";
+        try
+        {
+            var statusTask = Tailscale.GetStatusAsync();
+            var prefsTask  = Tailscale.GetPrefsAsync();
+            await Task.WhenAll(statusTask, prefsTask);
+
+            var status = await statusTask;
+            var prefs  = await prefsTask;
+
+            _exitNodes = status?.AllPeers
+                .Where(p => p.ExitNodeOption || p.ExitNode)
+                .OrderByDescending(p => p.Online)
+                .ThenBy(p => p.DisplayName)
+                .ToList() ?? [];
+
+            _activeNode        = status?.ActiveExitNode;
+            _allowLan          = prefs?.ExitNodeAllowLANAccess ?? false;
+            _advertiseExitNode = prefs?.AdvertiseRoutes?.Any(r => r == "0.0.0.0/0" || r == "::/0") ?? false;
+
+            _loaded = true;
+            _status = "";
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task UseExitNodeAsync(TailscalePeer peer)
+    {
+        _busy = true;
+        _status = $"Connecting to {peer.DisplayName}...";
+        try
+        {
+            var result = await Tailscale.SetExitNodeAsync(peer.PrimaryIP, _allowLan);
+            _status = result.Success ? $"Exit node set to {peer.DisplayName}." : $"Error: {result.Stderr}";
+            if (result.Success) await LoadAsync();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task ClearAsync()
+    {
+        _busy = true;
+        _status = "Disconnecting...";
+        try
+        {
+            var result = await Tailscale.ClearExitNodeAsync();
+            _status = result.Success ? "Exit node cleared." : $"Error: {result.Stderr}";
+            if (result.Success) await LoadAsync();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task ToggleLanAsync(bool value)
+    {
+        _allowLan = value;
+        _busy = true;
+        try
+        {
+            var result = await Tailscale.SetExitNodeAllowLanAsync(_allowLan);
+            _status = result.Success
+                ? $"LAN access {(_allowLan ? "allowed" : "blocked")}."
+                : $"Error: {result.Stderr}";
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task ToggleAdvertiseAsync(bool value)
+    {
+        _advertiseExitNode = value;
+        _busy = true;
+        try
+        {
+            var result = await Tailscale.AdvertiseExitNodeAsync(_advertiseExitNode);
+            _status = result.Success
+                ? $"Exit node advertising {(_advertiseExitNode ? "enabled" : "disabled")}."
+                : $"Error: {result.Stderr}";
+        }
+        finally { _busy = false; }
+    }
+}

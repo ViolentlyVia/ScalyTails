@@ -1,9 +1,156 @@
-@page "/peers"
+﻿@page "/peers"
 @rendermode InteractiveServer
 @inject ITailscaleService Tailscale
 
 <PageTitle>Peers — ScalyTails</PageTitle>
 
-<MudText Typo="Typo.h5" Class="mb-4">Peers</MudText>
+<MudStack Spacing="4">
 
-<MudAlert Severity="Severity.Info">Peers page — coming soon.</MudAlert>
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.Devices" Color="Color.Primary" />
+            <MudText Typo="Typo.h5">Peers</MudText>
+            @if (!string.IsNullOrWhiteSpace(_status))
+            {
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">@_status</MudText>
+            }
+        </MudStack>
+        <MudStack Row="true" Spacing="2">
+            <MudTextField @bind-Value="_filter" Label="Search" Variant="Variant.Outlined"
+                          Margin="Margin.Dense" Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Immediate="true" OnKeyUp="ApplyFilter"
+                          Style="min-width:200px" />
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Refresh"
+                       OnClick="LoadAsync" Disabled="_busy">
+                Refresh
+            </MudButton>
+        </MudStack>
+    </MudStack>
+
+    <MudTable Items="_filtered" Dense="true" Hover="true" Loading="_busy" Elevation="1">
+        <NoRecordsContent>
+            <MudText Class="mud-text-secondary pa-4">No peers found.</MudText>
+        </NoRecordsContent>
+        <HeaderContent>
+            <MudTh></MudTh>
+            <MudTh>Name</MudTh>
+            <MudTh>IP</MudTh>
+            <MudTh>OS</MudTh>
+            <MudTh>Last Seen</MudTh>
+            <MudTh>SSH</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>
+                <MudTooltip Text="@(context.Online ? "Online" : "Offline")">
+                    <MudIcon Icon="@Icons.Material.Filled.Circle"
+                             Size="Size.Small"
+                             Color="@(context.Online ? Color.Success : Color.Default)"
+                             Style="font-size:0.6rem" />
+                </MudTooltip>
+            </MudTd>
+            <MudTd>
+                <MudStack Spacing="0">
+                    <MudText Style="font-weight:500">@context.DisplayName</MudText>
+                    @if (!string.IsNullOrWhiteSpace(context.ShortDNS) && context.ShortDNS != context.DisplayName)
+                    {
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="font-family:monospace">@context.ShortDNS</MudText>
+                    }
+                </MudStack>
+            </MudTd>
+            <MudTd Style="font-family:monospace;font-size:0.85rem">@context.PrimaryIP</MudTd>
+            <MudTd>
+                @if (!string.IsNullOrWhiteSpace(context.OS))
+                {
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@context.OS</MudChip>
+                }
+            </MudTd>
+            <MudTd Style="font-size:0.8rem">
+                @if (context.Online)
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Success">Now</MudText>
+                }
+                else if (context.LastSeen.HasValue)
+                {
+                    <MudText Typo="Typo.body2">@context.LastSeen.Value.ToLocalTime().ToString("MMM d, HH:mm")</MudText>
+                }
+            </MudTd>
+            <MudTd>
+                @if (!string.IsNullOrWhiteSpace(context.PrimaryIP))
+                {
+                    <MudTooltip Text="@($"ssh {context.PrimaryIP}")">
+                        <MudIconButton Icon="@Icons.Material.Filled.Terminal"
+                                       Size="Size.Small"
+                                       OnClick="() => ShowSsh(context)" />
+                    </MudTooltip>
+                }
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+
+    @if (!string.IsNullOrWhiteSpace(_sshCommand))
+    {
+        <MudAlert Severity="Severity.Info" Icon="@Icons.Material.Filled.Terminal" Dense="true">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <pre style="margin:0;font-size:0.85rem;flex:1">@_sshCommand</pre>
+                <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
+                               OnClick="CopySshAsync" />
+            </MudStack>
+        </MudAlert>
+    }
+
+</MudStack>
+
+@code {
+    @inject IJSRuntime JS
+
+    private List<TailscalePeer> _all = [];
+    private List<TailscalePeer> _filtered = [];
+    private string _filter = "";
+    private string _sshCommand = "";
+    private bool _busy;
+    private string _status = "";
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _busy = true;
+        _status = "Loading...";
+        try
+        {
+            var status = await Tailscale.GetStatusAsync();
+            _all = status?.AllPeers
+                .OrderByDescending(p => p.Online)
+                .ThenBy(p => p.DisplayName)
+                .ToList() ?? [];
+            ApplyFilter();
+            _status = "";
+        }
+        finally { _busy = false; }
+    }
+
+    private void ApplyFilter()
+    {
+        var f = _filter.Trim();
+        _filtered = string.IsNullOrWhiteSpace(f)
+            ? [.. _all]
+            : _all.Where(p =>
+                p.DisplayName.Contains(f, StringComparison.OrdinalIgnoreCase) ||
+                p.PrimaryIP.Contains(f, StringComparison.OrdinalIgnoreCase) ||
+                p.OS.Contains(f, StringComparison.OrdinalIgnoreCase))
+              .ToList();
+    }
+
+    private void ShowSsh(TailscalePeer peer)
+    {
+        _sshCommand = $"ssh {peer.PrimaryIP}";
+    }
+
+    private async Task CopySshAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(_sshCommand))
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", _sshCommand);
+    }
+}

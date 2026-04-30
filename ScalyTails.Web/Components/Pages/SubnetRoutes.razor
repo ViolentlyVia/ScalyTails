@@ -1,9 +1,197 @@
-@page "/subnet-routes"
+﻿@page "/subnet-routes"
 @rendermode InteractiveServer
 @inject ITailscaleService Tailscale
 
 <PageTitle>Subnet Routes — ScalyTails</PageTitle>
 
-<MudText Typo="Typo.h5" Class="mb-4">Subnet Routes</MudText>
+<MudStack Spacing="4">
 
-<MudAlert Severity="Severity.Info">Subnet Routes page — coming soon.</MudAlert>
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.AccountTree" Color="Color.Primary" />
+            <MudText Typo="Typo.h5">Subnet Routes</MudText>
+            @if (!string.IsNullOrWhiteSpace(_status))
+            {
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">@_status</MudText>
+            }
+        </MudStack>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Refresh"
+                   OnClick="LoadAsync" Disabled="_busy">
+            Refresh
+        </MudButton>
+    </MudStack>
+
+    <MudGrid Spacing="4">
+
+        <!-- Accept routes toggle -->
+        <MudItem xs="12">
+            <MudCard>
+                <MudCardContent>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                        <MudStack>
+                            <MudText Typo="Typo.subtitle1"><b>Accept Routes</b></MudText>
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                                Accept subnet routes advertised by other nodes on your tailnet.
+                            </MudText>
+                        </MudStack>
+                        <MudSwitch Value="_acceptRoutes" T="bool"
+                                   Color="Color.Primary"
+                                   Disabled="_busy || !_loaded"
+                                   ValueChanged="async v => await ToggleAcceptRoutesAsync(v)" />
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <!-- Advertised routes -->
+        <MudItem xs="12" md="6">
+            <MudCard Style="height:100%">
+                <MudCardContent>
+                    <MudText Typo="Typo.overline" Class="mb-2">Advertised Routes</MudText>
+                    <MudStack Spacing="2" Class="mb-3">
+                        @foreach (var route in _advertisedRoutes)
+                        {
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                <MudText Style="font-family:monospace;flex:1">@route</MudText>
+                                <MudIconButton Icon="@Icons.Material.Filled.Close"
+                                               Size="Size.Small" Color="Color.Error"
+                                               Disabled="_busy"
+                                               OnClick="() => RemoveRoute(route)" />
+                            </MudStack>
+                        }
+                        @if (_advertisedRoutes.Count == 0 && _loaded)
+                        {
+                            <MudText Class="mud-text-secondary" Typo="Typo.body2">No routes advertised.</MudText>
+                        }
+                    </MudStack>
+                    <MudStack Row="true" Spacing="2">
+                        <MudTextField @bind-Value="_newRoute" Label="Add route (e.g. 192.168.1.0/24)"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense"
+                                      Style="font-family:monospace;flex:1"
+                                      Disabled="_busy"
+                                      OnKeyDown="OnRouteKeyDown" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Primary"
+                                       Disabled="_busy" OnClick="AddRoute" />
+                    </MudStack>
+                </MudCardContent>
+                <MudCardActions>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                               Disabled="_busy || !_loaded" OnClick="ApplyRoutesAsync">
+                        Apply Routes
+                    </MudButton>
+                </MudCardActions>
+            </MudCard>
+        </MudItem>
+
+        <!-- Peers advertising routes -->
+        <MudItem xs="12" md="6">
+            <MudCard Style="height:100%">
+                <MudCardContent>
+                    <MudText Typo="Typo.overline" Class="mb-2">Peers Advertising Routes</MudText>
+                    @if (_peerRoutes.Count == 0 && _loaded)
+                    {
+                        <MudText Class="mud-text-secondary" Typo="Typo.body2">No peers are advertising routes.</MudText>
+                    }
+                    else
+                    {
+                        <MudSimpleTable Dense="true" Striped="true">
+                            <thead>
+                                <tr>
+                                    <th>Peer</th>
+                                    <th>Routes</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var pr in _peerRoutes)
+                                {
+                                    <tr>
+                                        <td style="font-weight:500">@pr.PeerName</td>
+                                        <td style="font-family:monospace;font-size:0.8rem">@string.Join(", ", pr.Routes)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </MudSimpleTable>
+                    }
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+    </MudGrid>
+
+</MudStack>
+
+@code {
+    private record PeerRoute(string PeerName, List<string> Routes);
+
+    private List<string> _advertisedRoutes = [];
+    private List<PeerRoute> _peerRoutes = [];
+    private bool _acceptRoutes;
+    private string _newRoute = "";
+    private bool _busy;
+    private bool _loaded;
+    private string _status = "";
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _busy = true;
+        _status = "Loading...";
+        try
+        {
+            var prefs = await Tailscale.GetPrefsAsync();
+            var status = await Tailscale.GetStatusAsync();
+
+            _advertisedRoutes = prefs?.AdvertiseRoutes?.ToList() ?? [];
+            _acceptRoutes = prefs?.RouteAll ?? false;
+
+            _peerRoutes = status?.AllPeers
+                .Where(p => p.AdvertisedRoutes is { Count: > 0 })
+                .Select(p => new PeerRoute(p.DisplayName, p.AdvertisedRoutes!))
+                .OrderBy(p => p.PeerName)
+                .ToList() ?? [];
+
+            _loaded = true;
+            _status = "";
+        }
+        finally { _busy = false; }
+    }
+
+    private void AddRoute()
+    {
+        var v = _newRoute.Trim();
+        if (string.IsNullOrWhiteSpace(v) || _advertisedRoutes.Contains(v)) return;
+        _advertisedRoutes.Add(v);
+        _newRoute = "";
+    }
+
+    private void RemoveRoute(string route) => _advertisedRoutes.Remove(route);
+
+    private void OnRouteKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") AddRoute(); }
+
+    private async Task ApplyRoutesAsync()
+    {
+        _busy = true;
+        try
+        {
+            var result = await Tailscale.AdvertiseRoutesAsync(_advertisedRoutes);
+            _status = result.Success ? "Routes updated." : $"Error: {result.Stderr}";
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task ToggleAcceptRoutesAsync(bool value)
+    {
+        _acceptRoutes = value;
+        _busy = true;
+        try
+        {
+            var result = await Tailscale.SetAcceptRoutesAsync(_acceptRoutes);
+            _status = result.Success
+                ? $"Accept routes {(_acceptRoutes ? "enabled" : "disabled")}."
+                : $"Error: {result.Stderr}";
+        }
+        finally { _busy = false; }
+    }
+}

@@ -1,9 +1,250 @@
-@page "/"
+﻿@page "/"
 @rendermode InteractiveServer
 @inject ITailscaleService Tailscale
+@implements IAsyncDisposable
 
 <PageTitle>Overview — ScalyTails</PageTitle>
 
-<MudText Typo="Typo.h5" Class="mb-4">Overview</MudText>
+<MudStack Spacing="4">
 
-<MudAlert Severity="Severity.Info">Overview page — coming soon.</MudAlert>
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.Hub" Color="Color.Primary" />
+            <MudText Typo="Typo.h5">Overview</MudText>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">auto-refreshes every 5 s</MudText>
+        </MudStack>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Refresh"
+                   OnClick="RefreshAsync" Disabled="_busy">
+            Refresh
+        </MudButton>
+    </MudStack>
+
+    @if (_status is null)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+    }
+    else
+    {
+        <!-- Connection status card -->
+        <MudCard>
+            <MudCardContent>
+                <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                        <MudIcon Icon="@(_status.IsRunning ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.Cancel)"
+                                 Color="@(_status.IsRunning ? Color.Success : Color.Error)"
+                                 Size="Size.Large" />
+                        <MudStack Spacing="0">
+                            <MudText Typo="Typo.h6">@(_status.IsRunning ? "Connected" : _status.NeedsLogin ? "Needs Login" : "Disconnected")</MudText>
+                            @if (_status.CurrentTailnet is not null)
+                            {
+                                <MudText Typo="Typo.body2" Class="mud-text-secondary">@_status.CurrentTailnet.Name</MudText>
+                            }
+                        </MudStack>
+                    </MudStack>
+                    <MudStack Row="true" Spacing="2">
+                        @if (_status.IsRunning)
+                        {
+                            <MudButton Variant="Variant.Outlined" Color="Color.Error"
+                                       StartIcon="@Icons.Material.Filled.PowerSettingsNew"
+                                       OnClick="DisconnectAsync" Disabled="_busy">
+                                Disconnect
+                            </MudButton>
+                        }
+                        else
+                        {
+                            <MudButton Variant="Variant.Filled" Color="Color.Success"
+                                       StartIcon="@Icons.Material.Filled.PowerSettingsNew"
+                                       OnClick="ConnectAsync" Disabled="_busy">
+                                Connect
+                            </MudButton>
+                        }
+                    </MudStack>
+                </MudStack>
+            </MudCardContent>
+        </MudCard>
+
+        <MudGrid Spacing="4">
+
+            <!-- This device -->
+            <MudItem xs="12" md="6">
+                <MudCard Style="height:100%">
+                    <MudCardContent>
+                        <MudText Typo="Typo.overline" Class="mb-2">This Device</MudText>
+                        @if (_status.Self is not null)
+                        {
+                            <MudSimpleTable Dense="true">
+                                <tbody>
+                                    <tr><td><b>Hostname</b></td><td style="font-family:monospace">@_status.Self.HostName</td></tr>
+                                    <tr>
+                                        <td><b>Tailscale IPs</b></td>
+                                        <td style="font-family:monospace">
+                                            @foreach (var ip in (_status.TailscaleIPs ?? []))
+                                            {
+                                                <div>@ip</div>
+                                            }
+                                        </td>
+                                    </tr>
+                                    <tr><td><b>OS</b></td><td>@_status.Self.OS</td></tr>
+                                    <tr><td><b>Version</b></td><td style="font-family:monospace">@_status.Version</td></tr>
+                                    @if (_status.MagicDNSSuffix is not null)
+                                    {
+                                        <tr><td><b>MagicDNS</b></td><td style="font-family:monospace">@_status.MagicDNSSuffix</td></tr>
+                                    }
+                                </tbody>
+                            </MudSimpleTable>
+                        }
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+
+            <!-- Prefs summary -->
+            <MudItem xs="12" md="6">
+                <MudCard Style="height:100%">
+                    <MudCardContent>
+                        <MudText Typo="Typo.overline" Class="mb-2">Preferences</MudText>
+                        @if (_prefs is not null)
+                        {
+                            <MudSimpleTable Dense="true">
+                                <tbody>
+                                    <tr>
+                                        <td><b>Accept Routes</b></td>
+                                        <td><MudChip T="string" Size="Size.Small" Color="@(_prefs.RouteAll ? Color.Success : Color.Default)" Variant="Variant.Outlined">@(_prefs.RouteAll ? "On" : "Off")</MudChip></td>
+                                    </tr>
+                                    <tr>
+                                        <td><b>Shields Up</b></td>
+                                        <td><MudChip T="string" Size="Size.Small" Color="@(_prefs.ShieldsUp ? Color.Warning : Color.Default)" Variant="Variant.Outlined">@(_prefs.ShieldsUp ? "On" : "Off")</MudChip></td>
+                                    </tr>
+                                    <tr>
+                                        <td><b>SSH Server</b></td>
+                                        <td><MudChip T="string" Size="Size.Small" Color="@(_prefs.RunSSH ? Color.Success : Color.Default)" Variant="Variant.Outlined">@(_prefs.RunSSH ? "On" : "Off")</MudChip></td>
+                                    </tr>
+                                    <tr>
+                                        <td><b>Exit Node</b></td>
+                                        <td>
+                                            @if (_status.ActiveExitNode is not null)
+                                            {
+                                                <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">@_status.ActiveExitNode.DisplayName</MudChip>
+                                            }
+                                            else
+                                            {
+                                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">None</MudChip>
+                                            }
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><b>Advertised Routes</b></td>
+                                        <td style="font-family:monospace;font-size:0.8rem">@_prefs.AdvertisedRoutesDisplay</td>
+                                    </tr>
+                                </tbody>
+                            </MudSimpleTable>
+                        }
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+
+            <!-- Peer summary -->
+            <MudItem xs="12">
+                <MudCard>
+                    <MudCardContent>
+                        <MudText Typo="Typo.overline" Class="mb-2">Peers</MudText>
+                        <MudStack Row="true" Spacing="4">
+                            <MudStack Spacing="0" AlignItems="AlignItems.Center">
+                                <MudText Typo="Typo.h4" Style="font-weight:700">@_status.AllPeers.Count()</MudText>
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary">Total</MudText>
+                            </MudStack>
+                            <MudStack Spacing="0" AlignItems="AlignItems.Center">
+                                <MudText Typo="Typo.h4" Style="font-weight:700;color:var(--mud-palette-success)">@_status.AllPeers.Count(p => p.Online)</MudText>
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary">Online</MudText>
+                            </MudStack>
+                            <MudStack Spacing="0" AlignItems="AlignItems.Center">
+                                <MudText Typo="Typo.h4" Style="font-weight:700">@_status.AllPeers.Count(p => !p.Online)</MudText>
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary">Offline</MudText>
+                            </MudStack>
+                        </MudStack>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+
+        </MudGrid>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(_actionStatus))
+    {
+        <MudAlert Severity="Severity.Info" Dense="true">@_actionStatus</MudAlert>
+    }
+
+</MudStack>
+
+@code {
+    private TailscaleStatus? _status;
+    private TailscalePrefs? _prefs;
+    private bool _busy;
+    private string _actionStatus = "";
+    private CancellationTokenSource _cts = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAsync();
+        _ = AutoRefreshLoopAsync(_cts.Token);
+    }
+
+    private async Task AutoRefreshLoopAsync(CancellationToken ct)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+        while (!ct.IsCancellationRequested && await timer.WaitForNextTickAsync(ct).ConfigureAwait(false))
+        {
+            await InvokeAsync(async () =>
+            {
+                _status = await Tailscale.GetStatusAsync(ct);
+                StateHasChanged();
+            });
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        _busy = true;
+        try
+        {
+            var st = Tailscale.GetStatusAsync();
+            var pr = Tailscale.GetPrefsAsync();
+            await Task.WhenAll(st, pr);
+            _status = await st;
+            _prefs  = await pr;
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task ConnectAsync()
+    {
+        _busy = true;
+        _actionStatus = "Connecting...";
+        try
+        {
+            var result = await Tailscale.ConnectAsync();
+            _actionStatus = result.Success ? "Connected." : $"Error: {result.Stderr}";
+            await RefreshAsync();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task DisconnectAsync()
+    {
+        _busy = true;
+        _actionStatus = "Disconnecting...";
+        try
+        {
+            var result = await Tailscale.DisconnectAsync();
+            _actionStatus = result.Success ? "Disconnected." : $"Error: {result.Stderr}";
+            await RefreshAsync();
+        }
+        finally { _busy = false; }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _cts.CancelAsync();
+        _cts.Dispose();
+    }
+}
