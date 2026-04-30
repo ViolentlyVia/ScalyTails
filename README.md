@@ -1,6 +1,6 @@
-# ScalyTails
+# ScalyTails Web
 
-A full-featured Windows GUI for [Tailscale](https://tailscale.com), built with WPF and .NET 8. ScalyTails wraps the Tailscale CLI and REST API into a polished native application with a Material Design interface and system-tray integration.
+A full-featured web interface for [Tailscale](https://tailscale.com), built with Blazor Server and .NET 10. ScalyTails wraps the Tailscale CLI and REST API into a polished web application with a Material Design interface (via MudBlazor) that can be accessed securely over your Tailnet.
 
 ---
 
@@ -30,80 +30,18 @@ A full-featured Windows GUI for [Tailscale](https://tailscale.com), built with W
 | **Logs** | Tail network logs for the last 1–168 hours with source and destination columns. |
 | **Keys** | Create reusable/ephemeral/preauthorized auth keys, copy the key value, and revoke existing keys. |
 
-### Other
-
-- **System tray**: minimize to tray, double-click to restore, quick connect/disconnect from the tray menu.
-- **Auto-refresh**: status, peers, exit nodes, routes, and serve config refresh every 5 seconds automatically.
-
 ---
 
 ## Prerequisites
 
-- **Windows 10/11**
-- **[Tailscale for Windows](https://tailscale.com/download/windows)** installed (ScalyTails searches `Program Files` and falls back to `PATH`)
-- **[.NET 8.0 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0)**
+- **[Tailscale](https://tailscale.com/download)** installed on the host machine.
+- **[.NET 10.0 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)**
 
 ---
 
-## Build
+## Build and Run
 
 ```sh
-git clone https://github.com/ViolentlyVia/ScalyTails
-cd ScalyTails
-dotnet build
+git clone [https://github.com/ViolentlyVia/ScalyTails](https://github.com/ViolentlyVia/ScalyTails)
+cd ScalyTails/ScalyTails.Web
 dotnet run
-```
-
-Or open `ScalyTails.slnx` in Visual Studio 2022+ / Rider and run from there.
-
----
-
-## API key setup
-
-Several pages (DNS, Devices, Users, Policy, Logs, Keys) call the [Tailscale REST API](https://tailscale.com/api) and require an API key:
-
-1. Go to **[tailscale.com/admin/settings/keys](https://login.tailscale.com/admin/settings/keys)** and generate a personal API key.
-2. Open ScalyTails → **Settings**.
-3. Paste the key into the **API Key** field.
-4. Set **Tailnet** to your tailnet name (e.g. `example.com`) — leave it as `-` to use the default tailnet for the authenticated key.
-5. Click **Save**.
-
----
-
-## Architecture
-
-```text
-ScalyTails/
-├── Models/           # JSON-deserialization models for CLI output and REST API responses
-├── Services/
-│   ├── TailscaleService.cs      # Runs tailscale.exe subprocesses, returns CliResult
-│   ├── TailscaleApiService.cs   # HTTP client wrapper for api.tailscale.com/api/v2
-│   ├── AppSettingsService.cs    # Persists API key + tailnet to %APPDATA%\ScalyTails\settings.json
-│   └── IApiKeyAware.cs          # Interface for pages that need to react to API key changes
-├── ViewModels/       # CommunityToolkit.Mvvm ObservableObject + RelayCommand per page
-├── Views/            # WPF UserControl pages (.xaml + .xaml.cs)
-├── Converters/       # IValueConverter implementations for the UI
-├── App.xaml.cs       # Startup: wires services, creates MainWindow, sets up tray icon
-└── MainWindow.xaml.cs  # Shell: nav sidebar routing, page host, minimize-to-tray
-```
-
-All long-running operations are `async`/`await`. The main view model polls Tailscale status every 5 seconds using `PeriodicTimer` (which skips missed ticks, so a slow response won't queue up overlapping refreshes). Admin page view models are lazy — they only load when the user first opens the page and clicks **Load** (or whenever they navigate to the page after entering an API key).
-
----
-
-## Tech stack
-
-| Package | Version | Purpose |
-| --- | --- | --- |
-| .NET 8.0 (WPF) | 8.0 | Framework |
-| CommunityToolkit.Mvvm | 8.3.2 | MVVM source generators (`[ObservableProperty]`, `[RelayCommand]`) |
-| MaterialDesignThemes | 5.1.0 | UI controls and icons (MDI icon set) |
-| Hardcodet.NotifyIcon.Wpf | 2.0.1 | System tray icon and context menu |
-
----
-
-## License
-
-ScalyTails is free software released under the **[GNU General Public License v3.0](LICENSE)**.
-
-You are free to use, copy, modify, and distribute this software under the terms of the GPL v3. See the [LICENSE](LICENSE) file for the full license text.
