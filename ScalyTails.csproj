@@ -11,6 +11,15 @@
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
   </PropertyGroup>
 
+  <!-- Exclude the Blazor web rewrite subfolder from this project's glob -->
+  <ItemGroup>
+    <Compile Remove="ScalyTails.Web\**" />
+    <None Remove="ScalyTails.Web\**" />
+    <Content Remove="ScalyTails.Web\**" />
+    <EmbeddedResource Remove="ScalyTails.Web\**" />
+    <Page Remove="ScalyTails.Web\**" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
     <PackageReference Include="MaterialDesignThemes" Version="5.1.0" />
