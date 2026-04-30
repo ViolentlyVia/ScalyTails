@@ -4,6 +4,141 @@
 
 <PageTitle>TailDrive — ScalyTails</PageTitle>
 
-<MudText Typo="Typo.h5" Class="mb-4">TailDrive</MudText>
+<MudStack Spacing="4">
 
-<MudAlert Severity="Severity.Info">TailDrive page — coming soon.</MudAlert>
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.Folder" Color="Color.Primary" />
+            <MudText Typo="Typo.h5">TailDrive</MudText>
+            @if (!string.IsNullOrWhiteSpace(_status))
+            {
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">@_status</MudText>
+            }
+        </MudStack>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Refresh"
+                   OnClick="LoadAsync" Disabled="_busy">
+            Refresh
+        </MudButton>
+    </MudStack>
+
+    <!-- Add share form -->
+    <MudCard>
+        <MudCardContent>
+            <MudText Typo="Typo.overline" Class="mb-3">Share a Folder</MudText>
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="4">
+                    <MudTextField @bind-Value="_newName" Label="Share name"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense"
+                                  Disabled="_busy" />
+                </MudItem>
+                <MudItem xs="12" sm="8">
+                    <MudTextField @bind-Value="_newPath" Label="Local path (e.g. C:\Users\You\Documents)"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense"
+                                  Style="font-family:monospace"
+                                  Disabled="_busy" />
+                </MudItem>
+            </MudGrid>
+        </MudCardContent>
+        <MudCardActions>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="AddAsync"
+                       Disabled="_busy || string.IsNullOrWhiteSpace(_newName) || string.IsNullOrWhiteSpace(_newPath)">
+                Share
+            </MudButton>
+        </MudCardActions>
+    </MudCard>
+
+    <!-- Active shares table -->
+    <MudTable Items="_shares" Dense="true" Hover="true" Loading="_busy" Elevation="1">
+        <NoRecordsContent>
+            <MudText Class="mud-text-secondary pa-4">No folders shared. Use the form above to add one.</MudText>
+        </NoRecordsContent>
+        <HeaderContent>
+            <MudTh>Share Name</MudTh>
+            <MudTh>Local Path</MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd><MudText Style="font-weight:500">@context.Name</MudText></MudTd>
+            <MudTd Style="font-family:monospace;font-size:0.85rem">@context.Path</MudTd>
+            <MudTd>
+                <MudTooltip Text="Remove share">
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                   Color="Color.Error" Size="Size.Small"
+                                   Disabled="_busy"
+                                   OnClick="() => RemoveAsync(context)" />
+                </MudTooltip>
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+
+</MudStack>
+
+@code {
+    private record DriveShare(string Name, string Path);
+    private List<DriveShare> _shares = [];
+    private string _newName = "";
+    private string _newPath = "";
+    private bool _busy;
+    private string _status = "";
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _busy = true;
+        try
+        {
+            var result = await Tailscale.DriveListAsync();
+            _shares.Clear();
+            if (result.Success && !string.IsNullOrWhiteSpace(result.Stdout))
+            {
+                foreach (var line in result.Stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries).Skip(1))
+                {
+                    var parts = line.Split('\t', StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length >= 2)
+                        _shares.Add(new DriveShare(parts[0].Trim(), parts[1].Trim()));
+                    else
+                    {
+                        var segs = line.Trim().Split(new[] { "  " }, 2, StringSplitOptions.RemoveEmptyEntries);
+                        if (segs.Length >= 2)
+                            _shares.Add(new DriveShare(segs[0].Trim(), segs[1].Trim()));
+                    }
+                }
+            }
+            _status = _shares.Count == 0 ? "No drives shared." : "";
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task AddAsync()
+    {
+        _busy = true;
+        try
+        {
+            var result = await Tailscale.DriveShareAsync(_newName.Trim(), _newPath.Trim());
+            _status = result.Success ? $"Shared '{_newName}'." : $"Error: {result.Stderr}";
+            if (result.Success)
+            {
+                _newName = "";
+                _newPath = "";
+                await LoadAsync();
+            }
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task RemoveAsync(DriveShare share)
+    {
+        _busy = true;
+        try
+        {
+            var result = await Tailscale.DriveUnshareAsync(share.Name);
+            _status = result.Success ? $"Removed '{share.Name}'." : $"Error: {result.Stderr}";
+            if (result.Success) await LoadAsync();
+        }
+        finally { _busy = false; }
+    }
+}

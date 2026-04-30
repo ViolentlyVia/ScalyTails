@@ -4,6 +4,306 @@
 
 <PageTitle>Diagnostics — ScalyTails</PageTitle>
 
-<MudText Typo="Typo.h5" Class="mb-4">Diagnostics</MudText>
+<MudStack Spacing="4">
 
-<MudAlert Severity="Severity.Info">Diagnostics page — coming soon.</MudAlert>
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+        <MudIcon Icon="@Icons.Material.Filled.NetworkCheck" Color="Color.Primary" />
+        <MudText Typo="Typo.h5">Diagnostics</MudText>
+    </MudStack>
+
+    <MudGrid Spacing="4">
+
+        <!-- NetCheck -->
+        <MudItem xs="12" md="6">
+            <MudCard Style="height:100%">
+                <MudCardContent>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-3">
+                        <MudText Typo="Typo.overline">Network Check</MudText>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.NetworkCheck"
+                                   OnClick="RunNetCheckAsync" Disabled="_busy">
+                            Run
+                        </MudButton>
+                    </MudStack>
+                    @if (!string.IsNullOrWhiteSpace(_ncStatus))
+                    {
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary mb-2">@_ncStatus</MudText>
+                    }
+                    @if (_netCheckDone)
+                    {
+                        <MudSimpleTable Dense="true" Bordered="false" Striped="true">
+                            <tbody>
+                                <tr><td><b>UDP</b></td><td>@_ncUdp</td></tr>
+                                <tr><td><b>IPv4</b></td><td>@_ncIPv4</td></tr>
+                                <tr><td><b>IPv6</b></td><td>@_ncIPv6</td></tr>
+                                <tr><td><b>NAT</b></td><td>@_ncNat</td></tr>
+                                <tr><td><b>DERP Region</b></td><td>@_ncDerp</td></tr>
+                            </tbody>
+                        </MudSimpleTable>
+                        @if (_derpLatencies.Count > 0)
+                        {
+                            <MudText Typo="Typo.caption" Class="mt-3 mb-1 mud-text-secondary">DERP Latencies (top 12)</MudText>
+                            <MudSimpleTable Dense="true" Striped="true">
+                                <tbody>
+                                    @foreach (var d in _derpLatencies)
+                                    {
+                                        <tr>
+                                            <td style="font-size:0.8rem">@d.RegionId</td>
+                                            <td style="font-family:monospace;font-size:0.8rem">@d.LatencyMs ms</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </MudSimpleTable>
+                        }
+                    }
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <!-- Ping -->
+        <MudItem xs="12" md="6">
+            <MudCard Style="height:100%">
+                <MudCardContent>
+                    <MudText Typo="Typo.overline" Class="mb-3">Ping</MudText>
+                    <MudStack Spacing="2">
+                        <MudSelect @bind-Value="_selectedPeer" Label="Select peer (optional)"
+                                   Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
+                                   T="TailscalePeer">
+                            @foreach (var p in _peers)
+                            {
+                                <MudSelectItem T="TailscalePeer" Value="p">@p.DisplayName (@p.PrimaryIP)</MudSelectItem>
+                            }
+                        </MudSelect>
+                        <MudStack Row="true" Spacing="2">
+                            <MudTextField @bind-Value="_pingTarget" Label="Target IP or hostname"
+                                          Variant="Variant.Outlined" Margin="Margin.Dense"
+                                          Style="font-family:monospace;flex:1" />
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                       OnClick="PingAsync" Disabled="_isPinging"
+                                       Style="align-self:center">
+                                Ping
+                            </MudButton>
+                        </MudStack>
+                        @if (!string.IsNullOrWhiteSpace(_pingOutput))
+                        {
+                            <pre style="font-size:0.75rem;white-space:pre-wrap;background:rgba(0,0,0,0.2);padding:8px;border-radius:4px;margin:0">@_pingOutput</pre>
+                        }
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <!-- Whois -->
+        <MudItem xs="12" md="6">
+            <MudCard>
+                <MudCardContent>
+                    <MudText Typo="Typo.overline" Class="mb-3">Whois</MudText>
+                    <MudStack Row="true" Spacing="2">
+                        <MudTextField @bind-Value="_whoisTarget" Label="IP address"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense"
+                                      Style="font-family:monospace;flex:1" />
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                   OnClick="WhoisAsync" Disabled="_busy"
+                                   Style="align-self:center">
+                            Lookup
+                        </MudButton>
+                    </MudStack>
+                    @if (!string.IsNullOrWhiteSpace(_whoisOutput))
+                    {
+                        <pre style="font-size:0.75rem;white-space:pre-wrap;background:rgba(0,0,0,0.2);padding:8px;border-radius:4px;margin-top:8px">@_whoisOutput</pre>
+                    }
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <!-- Update -->
+        <MudItem xs="12" md="6">
+            <MudCard>
+                <MudCardContent>
+                    <MudText Typo="Typo.overline" Class="mb-3">Tailscale Update</MudText>
+                    <MudStack Spacing="2">
+                        <MudStack Row="true" Spacing="2">
+                            <MudButton Variant="Variant.Outlined" OnClick="CheckUpdateAsync" Disabled="_busy">
+                                Check for Update
+                            </MudButton>
+                            @if (_updateAvailable)
+                            {
+                                <MudButton Variant="Variant.Filled" Color="Color.Success"
+                                           OnClick="ApplyUpdateAsync" Disabled="_busy">
+                                    Apply Update
+                                </MudButton>
+                            }
+                        </MudStack>
+                        @if (!string.IsNullOrWhiteSpace(_updateStatus))
+                        {
+                            <MudText Typo="Typo.body2">@_updateStatus</MudText>
+                        }
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <!-- Bug report -->
+        <MudItem xs="12" md="6">
+            <MudCard>
+                <MudCardContent>
+                    <MudText Typo="Typo.overline" Class="mb-3">Bug Report</MudText>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                        <MudButton Variant="Variant.Outlined" OnClick="BugReportAsync" Disabled="_busy">
+                            Generate Report ID
+                        </MudButton>
+                        @if (!string.IsNullOrWhiteSpace(_bugReportId))
+                        {
+                            <MudText Style="font-family:monospace;font-size:0.85rem">@_bugReportId</MudText>
+                        }
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+    </MudGrid>
+
+</MudStack>
+
+@code {
+    private static readonly System.Text.Json.JsonSerializerOptions _jsonOpts = new() { PropertyNameCaseInsensitive = true };
+
+    // NetCheck
+    private bool _netCheckDone;
+    private string _ncStatus = "";
+    private string _ncUdp = "—";
+    private string _ncIPv4 = "—";
+    private string _ncIPv6 = "—";
+    private string _ncNat = "—";
+    private string _ncDerp = "—";
+    private List<DerpLatency> _derpLatencies = [];
+
+    // Ping
+    private List<TailscalePeer> _peers = [];
+    private TailscalePeer? _selectedPeer;
+    private string _pingTarget = "";
+    private string _pingOutput = "";
+    private bool _isPinging;
+
+    // Whois
+    private string _whoisTarget = "";
+    private string _whoisOutput = "";
+
+    // Update
+    private string _updateStatus = "";
+    private bool _updateAvailable;
+
+    // Bug report
+    private string _bugReportId = "";
+
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var status = await Tailscale.GetStatusAsync();
+        if (status is not null)
+            _peers = status.AllPeers.OrderBy(p => p.DisplayName).ToList();
+    }
+
+    private void OnPeerSelected(TailscalePeer? peer)
+    {
+        _selectedPeer = peer;
+        if (peer is not null) _pingTarget = peer.PrimaryIP;
+    }
+
+    private async Task RunNetCheckAsync()
+    {
+        _busy = true;
+        _ncStatus = "Running…";
+        try
+        {
+            var result = await Tailscale.NetCheckAsync();
+            var json = string.IsNullOrWhiteSpace(result.Stdout) ? result.Stderr : result.Stdout;
+            if (string.IsNullOrWhiteSpace(json)) { _ncStatus = "No output — is Tailscale running?"; return; }
+
+            NetCheckResult? report;
+            try { report = System.Text.Json.JsonSerializer.Deserialize<NetCheckResult>(json, _jsonOpts); }
+            catch (Exception ex) { _ncStatus = $"Parse error: {ex.Message}"; return; }
+
+            if (report is null) { _ncStatus = "Failed to parse netcheck output."; return; }
+
+            _ncUdp  = report.UDP     ? "✓ Available"          : "✗ Blocked";
+            _ncIPv4 = report.HasIPv4 ? $"✓ {report.PublicIPv4}" : "✗ Unavailable";
+            _ncIPv6 = report.HasIPv6 ? $"✓ {report.PublicIPv6}" : "✗ Unavailable";
+            _ncNat  = report.MappingVariesByDestIP == true ? "Strict (varies by dest)" : "Easy";
+            _ncDerp = report.PreferredDERP > 0 ? $"Region {report.PreferredDERP}" : "None";
+            _derpLatencies = report.SortedDerpLatencies().Take(12).ToList();
+            _netCheckDone = true;
+            _ncStatus = "Complete.";
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task PingAsync()
+    {
+        var host = _pingTarget.Trim();
+        if (string.IsNullOrWhiteSpace(host)) return;
+        _isPinging = true;
+        _pingOutput = "Pinging…";
+        try
+        {
+            var result = await Tailscale.PingAsync(host);
+            _pingOutput = string.IsNullOrWhiteSpace(result.Stdout) ? result.Stderr : result.Stdout;
+        }
+        finally { _isPinging = false; }
+    }
+
+    private async Task WhoisAsync()
+    {
+        var target = _whoisTarget.Trim();
+        if (string.IsNullOrWhiteSpace(target)) return;
+        _busy = true;
+        _whoisOutput = "Looking up…";
+        try
+        {
+            var result = await Tailscale.WhoisAsync(target);
+            _whoisOutput = string.IsNullOrWhiteSpace(result.Stdout) ? result.Stderr : result.Stdout;
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task CheckUpdateAsync()
+    {
+        _busy = true;
+        _updateStatus = "Checking…";
+        try
+        {
+            var result = await Tailscale.UpdateCheckAsync();
+            var text = (result.Stdout + " " + result.Stderr).Trim();
+            _updateAvailable = text.Contains("update", StringComparison.OrdinalIgnoreCase)
+                            && !text.Contains("up to date", StringComparison.OrdinalIgnoreCase);
+            _updateStatus = text;
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task ApplyUpdateAsync()
+    {
+        _busy = true;
+        _updateStatus = "Updating…";
+        try
+        {
+            var result = await Tailscale.UpdateApplyAsync();
+            _updateStatus = result.Success ? "Update applied. Restart Tailscale if needed." : $"Error: {result.Stderr}";
+            _updateAvailable = false;
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task BugReportAsync()
+    {
+        _busy = true;
+        _bugReportId = "Generating…";
+        try
+        {
+            var result = await Tailscale.BugReportAsync();
+            _bugReportId = result.Success ? result.Stdout.Trim() : $"Error: {result.Stderr}";
+        }
+        finally { _busy = false; }
+    }
+}

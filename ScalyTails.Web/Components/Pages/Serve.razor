@@ -4,6 +4,158 @@
 
 <PageTitle>Serve &amp; Funnel — ScalyTails</PageTitle>
 
-<MudText Typo="Typo.h5" Class="mb-4">Serve &amp; Funnel</MudText>
+<MudStack Spacing="4">
 
-<MudAlert Severity="Severity.Info">Serve &amp; Funnel page — coming soon.</MudAlert>
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.Cloud" Color="Color.Primary" />
+            <MudText Typo="Typo.h5">Serve &amp; Funnel</MudText>
+            @if (!string.IsNullOrWhiteSpace(_status))
+            {
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">@_status</MudText>
+            }
+        </MudStack>
+        <MudStack Row="true" Spacing="2">
+            <MudButton Variant="Variant.Outlined" Color="Color.Error"
+                       StartIcon="@Icons.Material.Filled.DeleteSweep"
+                       OnClick="ResetAsync" Disabled="_busy">
+                Reset All
+            </MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Refresh"
+                       OnClick="LoadAsync" Disabled="_busy">
+                Refresh
+            </MudButton>
+        </MudStack>
+    </MudStack>
+
+    <!-- Add serve form -->
+    <MudCard>
+        <MudCardContent>
+            <MudText Typo="Typo.overline" Class="mb-3">Add Serve / Funnel</MudText>
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="3">
+                    <MudSelect @bind-Value="_protocol" Label="Protocol"
+                               Variant="Variant.Outlined" Margin="Margin.Dense">
+                        <MudSelectItem Value="@("HTTPS")">HTTPS</MudSelectItem>
+                        <MudSelectItem Value="@("HTTP")">HTTP</MudSelectItem>
+                        <MudSelectItem Value="@("HTTPS Funnel")">HTTPS Funnel</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="2">
+                    <MudTextField @bind-Value="_port" Label="Port"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" sm="7">
+                    <MudTextField @bind-Value="_target" Label="Target (e.g. localhost:3000)"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense"
+                                  Style="font-family:monospace" />
+                </MudItem>
+            </MudGrid>
+        </MudCardContent>
+        <MudCardActions>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="AddAsync"
+                       Disabled="_busy || string.IsNullOrWhiteSpace(_port) || string.IsNullOrWhiteSpace(_target)">
+                Add
+            </MudButton>
+        </MudCardActions>
+    </MudCard>
+
+    <!-- Active entries -->
+    <MudTable Items="_entries" Dense="true" Hover="true" Loading="_busy" Elevation="1">
+        <NoRecordsContent>
+            <MudText Class="mud-text-secondary pa-4">No active serve configurations. Add one above.</MudText>
+        </NoRecordsContent>
+        <HeaderContent>
+            <MudTh>Protocol</MudTh>
+            <MudTh>Port</MudTh>
+            <MudTh>Target</MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
+                         Color="@(context.Protocol == "HTTPS Funnel" ? Color.Warning : Color.Default)">
+                    @context.Protocol
+                </MudChip>
+            </MudTd>
+            <MudTd Style="font-family:monospace">:@context.Port</MudTd>
+            <MudTd Style="font-family:monospace;font-size:0.85rem">@context.Target</MudTd>
+            <MudTd>
+                <MudTooltip Text="Remove">
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                   Color="Color.Error" Size="Size.Small"
+                                   Disabled="_busy"
+                                   OnClick="() => RemoveAsync(context)" />
+                </MudTooltip>
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+
+</MudStack>
+
+@code {
+    private record ServeEntry(string Protocol, string Port, string Target);
+    private List<ServeEntry> _entries = [];
+    private string _protocol = "HTTPS";
+    private string _port = "443";
+    private string _target = "";
+    private bool _busy;
+    private string _status = "";
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _busy = true;
+        try
+        {
+            var serve = await Tailscale.GetServeStatusAsync();
+            _entries = serve?.ToEntries()
+                .Select(e => new ServeEntry(e.Protocol, e.Port.ToString(), e.Target))
+                .ToList() ?? [];
+            _status = "";
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task AddAsync()
+    {
+        if (!int.TryParse(_port.Trim(), out var port)) { _status = "Invalid port."; return; }
+        _busy = true;
+        try
+        {
+            var result = await Tailscale.AddServeAsync(_protocol, port, _target.Trim());
+            _status = result.Success ? "Added." : $"Error: {result.Stderr}";
+            if (result.Success) { _target = ""; await LoadAsync(); }
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task RemoveAsync(ServeEntry entry)
+    {
+        if (!int.TryParse(entry.Port, out var port)) return;
+        _busy = true;
+        try
+        {
+            var result = await Tailscale.RemoveServeAsync(entry.Protocol, port);
+            _status = result.Success ? "Removed." : $"Error: {result.Stderr}";
+            if (result.Success) await LoadAsync();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task ResetAsync()
+    {
+        _busy = true;
+        try
+        {
+            var result = await Tailscale.ResetServeAsync();
+            _status = result.Success ? "All serve configs reset." : $"Error: {result.Stderr}";
+            if (result.Success) await LoadAsync();
+        }
+        finally { _busy = false; }
+    }
+}

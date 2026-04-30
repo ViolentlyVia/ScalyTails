@@ -1,9 +1,244 @@
 @page "/settings"
 @rendermode InteractiveServer
 @inject IAppSettingsService AppSettings
+@inject ITailscaleService Tailscale
 
 <PageTitle>Settings — ScalyTails</PageTitle>
 
-<MudText Typo="Typo.h5" Class="mb-4">Settings</MudText>
+<MudStack Spacing="4">
 
-<MudAlert Severity="Severity.Info">Settings page — coming soon.</MudAlert>
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+        <MudIcon Icon="@Icons.Material.Filled.Settings" Color="Color.Primary" />
+        <MudText Typo="Typo.h5">Settings</MudText>
+        @if (!string.IsNullOrWhiteSpace(_status))
+        {
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">@_status</MudText>
+        }
+    </MudStack>
+
+    <MudGrid Spacing="4">
+
+        <!-- API Key card -->
+        <MudItem xs="12" md="6">
+            <MudCard>
+                <MudCardContent>
+                    <MudText Typo="Typo.overline" Class="mb-3">Tailscale API Key</MudText>
+                    <MudStack Spacing="3">
+                        <MudTextField @bind-Value="_apiKey" Label="API Key (tskey-api-...)"
+                                      Variant="Variant.Outlined"
+                                      InputType="@(_showKey ? InputType.Text : InputType.Password)"
+                                      Adornment="Adornment.End"
+                                      AdornmentIcon="@(_showKey ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility)"
+                                      OnAdornmentClick="() => _showKey = !_showKey"
+                                      Immediate="true" OnKeyUp="OnApiKeyChanged" />
+
+                        @if (!string.IsNullOrWhiteSpace(_keyTypeWarning))
+                        {
+                            <MudAlert Severity="Severity.Warning" Dense="true">@_keyTypeWarning</MudAlert>
+                        }
+
+                        <MudTextField @bind-Value="_tailnet" Label="Tailnet (e.g. example.com or leave as -)"
+                                      Variant="Variant.Outlined" />
+                    </MudStack>
+                </MudCardContent>
+                <MudCardActions>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Save"
+                               OnClick="Save" Disabled="_busy">
+                        Save
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Error"
+                               StartIcon="@Icons.Material.Filled.Clear"
+                               OnClick="Clear" Disabled="_busy">
+                        Clear
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined"
+                               StartIcon="@Icons.Material.Filled.NetworkCheck"
+                               OnClick="TestAsync" Disabled="_busy || string.IsNullOrWhiteSpace(_apiKey)">
+                        Test
+                    </MudButton>
+                </MudCardActions>
+            </MudCard>
+        </MudItem>
+
+        <!-- Account switching card -->
+        <MudItem xs="12" md="6">
+            <MudCard>
+                <MudCardContent>
+                    <MudText Typo="Typo.overline" Class="mb-3">Account Switching</MudText>
+                    <MudStack Spacing="3">
+                        <MudButton Variant="Variant.Outlined"
+                                   StartIcon="@Icons.Material.Filled.Refresh"
+                                   OnClick="LoadAccountsAsync" Disabled="_busy">
+                            Load Accounts
+                        </MudButton>
+                        @if (_accounts.Count > 0)
+                        {
+                            <MudSelect @bind-Value="_selectedAccount" Label="Account"
+                                       Variant="Variant.Outlined">
+                                @foreach (var a in _accounts)
+                                {
+                                    <MudSelectItem Value="@a">@a</MudSelectItem>
+                                }
+                            </MudSelect>
+                            <div>
+                                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                           OnClick="SwitchAccountAsync"
+                                           Disabled="_busy || string.IsNullOrWhiteSpace(_selectedAccount)">
+                                    Switch Account
+                                </MudButton>
+                            </div>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                                Click Load Accounts to list logged-in Tailscale accounts.
+                            </MudText>
+                        }
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <!-- Test output -->
+        @if (!string.IsNullOrWhiteSpace(_testOutput))
+        {
+            <MudItem xs="12">
+                <MudCard>
+                    <MudCardContent>
+                        <MudText Typo="Typo.overline" Class="mb-2">Connection Test Output</MudText>
+                        <pre style="font-size:0.8rem;white-space:pre-wrap;margin:0">@_testOutput</pre>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+        }
+
+    </MudGrid>
+
+</MudStack>
+
+@code {
+    private string _apiKey = "";
+    private string _tailnet = "-";
+    private string _keyTypeWarning = "";
+    private string _status = "";
+    private string _testOutput = "";
+    private bool _busy;
+    private bool _showKey;
+
+    private List<string> _accounts = [];
+    private string _selectedAccount = "";
+
+    protected override void OnInitialized()
+    {
+        _apiKey  = AppSettings.Settings.ApiKey;
+        _tailnet = AppSettings.Settings.Tailnet;
+    }
+
+    private void OnApiKeyChanged()
+    {
+        _keyTypeWarning = _apiKey.Trim().StartsWith("tskey-auth-")
+            ? "This looks like a device auth key (tskey-auth-...). API features require an access token (tskey-api-...) — generate one at tailscale.com/admin/settings/keys."
+            : "";
+    }
+
+    private void Save()
+    {
+        AppSettings.Settings.ApiKey = _apiKey.Trim();
+        AppSettings.Settings.Tailnet = string.IsNullOrWhiteSpace(_tailnet) ? "-" : _tailnet.Trim();
+        AppSettings.Save();
+        _status = AppSettings.HasApiKey ? "API key saved." : "API key cleared.";
+    }
+
+    private void Clear()
+    {
+        _apiKey = "";
+        _testOutput = "";
+        AppSettings.Settings.ApiKey = "";
+        AppSettings.Save();
+        _status = "API key cleared.";
+    }
+
+    private async Task TestAsync()
+    {
+        var key = _apiKey.Trim();
+        if (string.IsNullOrEmpty(key)) return;
+        _busy = true;
+        _status = "Testing…";
+        _testOutput = "";
+        try
+        {
+            using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            const string url = "https://api.tailscale.com/api/v2/tailnet/-/devices";
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"Key prefix : {(key.Length > 16 ? key[..16] + "..." : key)}");
+            sb.AppendLine($"Key length : {key.Length} chars");
+            sb.AppendLine();
+
+            async Task<(int, string)> Try(string scheme, string creds)
+            {
+                try
+                {
+                    using var req = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Get, url);
+                    req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(scheme, creds);
+                    using var resp = await http.SendAsync(req);
+                    var body = await resp.Content.ReadAsStringAsync();
+                    return ((int)resp.StatusCode, body.Length > 100 ? body[..100] + "…" : body);
+                }
+                catch (Exception ex) { return (0, ex.Message); }
+            }
+
+            var r1 = await Try("Basic", Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(key + ":")));
+            sb.AppendLine($"[1] Basic key:  → HTTP {r1.Item1}  {r1.Item2}");
+            var r2 = await Try("Basic", Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(":" + key)));
+            sb.AppendLine($"[2] Basic :key  → HTTP {r2.Item1}  {r2.Item2}");
+            var r3 = await Try("Bearer", key);
+            sb.AppendLine($"[3] Bearer      → HTTP {r3.Item1}  {r3.Item2}");
+
+            var working = r1.Item1 == 200 ? "[1]" : r2.Item1 == 200 ? "[2]" : r3.Item1 == 200 ? "[3]" : "none";
+            sb.AppendLine();
+            sb.AppendLine(working == "none"
+                ? "No format returned 200. Key may be invalid or wrong type."
+                : $"Format {working} works.");
+
+            _testOutput = sb.ToString();
+            _status = "";
+        }
+        catch (Exception ex) { _status = $"Test failed: {ex.Message}"; }
+        finally { _busy = false; }
+    }
+
+    private async Task LoadAccountsAsync()
+    {
+        _busy = true;
+        try
+        {
+            var result = await Tailscale.SwitchListAsync();
+            _accounts.Clear();
+            if (result.Success && !string.IsNullOrWhiteSpace(result.Stdout))
+            {
+                foreach (var line in result.Stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries).Skip(1))
+                {
+                    var name = line.Trim().TrimStart('*').Trim();
+                    if (!string.IsNullOrWhiteSpace(name))
+                        _accounts.Add(name);
+                }
+            }
+            _status = _accounts.Count == 0 ? "Only one account found." : "";
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task SwitchAccountAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_selectedAccount)) return;
+        _busy = true;
+        _status = $"Switching to {_selectedAccount}…";
+        try
+        {
+            var result = await Tailscale.SwitchAccountAsync(_selectedAccount);
+            _status = result.Success ? $"Switched to {_selectedAccount}." : $"Error: {result.Stderr}";
+        }
+        finally { _busy = false; }
+    }
+}
