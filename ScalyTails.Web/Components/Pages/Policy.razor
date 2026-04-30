@@ -1,17 +1,141 @@
-@page "/policy"
-@rendermode InteractiveServer
+﻿@page "/policy"
 @inject ITailscaleApiService Api
-@inject IAppSettingsService AppSettings
 
-<PageTitle>Policy — ScalyTails</PageTitle>
+<PageTitle>Policy â€” ScalyTails</PageTitle>
 
-<MudText Typo="Typo.h5" Class="mb-4">Policy</MudText>
+<MudStack Spacing="4">
 
-@if (!Api.IsConfigured)
-{
-    <MudAlert Severity="Severity.Warning">No API key configured. Go to Settings to add one.</MudAlert>
-}
-else
-{
-    <MudAlert Severity="Severity.Info">Policy page — coming soon.</MudAlert>
+    <!-- Header -->
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.Policy" Color="Color.Primary" />
+            <MudText Typo="Typo.h5">Policy</MudText>
+            @if (!string.IsNullOrWhiteSpace(_status))
+            {
+                <MudText Typo="Typo.caption" Class="@(_statusError ? "mud-error-text" : "mud-text-secondary")">
+                    @_status
+                </MudText>
+            }
+        </MudStack>
+        <MudStack Row="true" Spacing="2">
+            @if (_isDirty)
+            {
+                <MudButton Variant="Variant.Outlined" Color="Color.Default"
+                           StartIcon="@Icons.Material.Filled.Undo"
+                           OnClick="Revert" Disabled="_busy">
+                    Revert
+                </MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Success"
+                           StartIcon="@Icons.Material.Filled.Save"
+                           OnClick="SaveAsync" Disabled="_busy">
+                    Save
+                </MudButton>
+            }
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Refresh"
+                       OnClick="LoadAsync" Disabled="_busy">
+                Load
+            </MudButton>
+        </MudStack>
+    </MudStack>
+
+    @if (!Api.IsConfigured)
+    {
+        <MudAlert Severity="Severity.Warning">
+            API key required. Go to <MudLink Href="/settings">Settings</MudLink> to add one.
+        </MudAlert>
+    }
+
+    @if (_isDirty)
+    {
+        <MudAlert Severity="Severity.Warning" Dense="true">Unsaved changes.</MudAlert>
+    }
+
+    <!-- JSON editor -->
+    <MudTextField @bind-Value="_policyText"
+                  Label="ACL Policy (JSON)"
+                  Variant="Variant.Outlined"
+                  Lines="30"
+                  Style="font-family: monospace; font-size: 0.82rem;"
+                  Disabled="_busy || !Api.IsConfigured"
+                  Immediate="true"
+                  OnKeyUp="OnTextChanged" />
+
+</MudStack>
+
+@code {
+    private string _policyText = "";
+    private string _savedText = "";
+    private bool _isDirty;
+    private bool _busy;
+    private string _status = "";
+    private bool _statusError;
+
+    private void OnTextChanged()
+    {
+        _isDirty = _policyText != _savedText;
+    }
+
+    private async Task LoadAsync()
+    {
+        if (!Api.IsConfigured) { _status = "No API key configured."; return; }
+        _busy = true;
+        _statusError = false;
+        _status = "Loadingâ€¦";
+        try
+        {
+            var result = await Api.GetPolicyAsync();
+            if (!result.Success)
+            {
+                _status = $"Error: {result.Error}";
+                _statusError = true;
+                return;
+            }
+
+            var policy = result.Data ?? "";
+            try
+            {
+                var doc = System.Text.Json.JsonDocument.Parse(policy);
+                policy = System.Text.Json.JsonSerializer.Serialize(
+                    doc, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+            }
+            catch { }
+
+            _savedText = policy;
+            _policyText = policy;
+            _isDirty = false;
+            _status = "";
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task SaveAsync()
+    {
+        _busy = true;
+        _status = "Savingâ€¦";
+        _statusError = false;
+        try
+        {
+            var ok = await Api.SetPolicyAsync(_policyText);
+            if (ok)
+            {
+                _savedText = _policyText;
+                _isDirty = false;
+                _status = "Policy saved.";
+            }
+            else
+            {
+                _status = "Failed to save â€” check JSON syntax.";
+                _statusError = true;
+            }
+        }
+        finally { _busy = false; }
+    }
+
+    private void Revert()
+    {
+        _policyText = _savedText;
+        _isDirty = false;
+        _status = "";
+    }
 }

@@ -1,10 +1,9 @@
-@page "/keys"
-@rendermode InteractiveServer
+﻿@page "/keys"
 @inject ITailscaleApiService Api
 @inject IAppSettingsService AppSettings
 @inject IJSRuntime JS
 
-<PageTitle>Keys — ScalyTails</PageTitle>
+<PageTitle>Keys â€” ScalyTails</PageTitle>
 
 <MudStack Spacing="4">
 
@@ -56,12 +55,12 @@
         </MudCardContent>
     </MudCard>
 
-    <!-- Newly created key — only shown immediately after creation -->
+    <!-- Newly created key â€” only shown immediately after creation -->
     @if (!string.IsNullOrWhiteSpace(_createdKeyValue))
     {
         <MudAlert Severity="Severity.Success" Icon="@Icons.Material.Filled.Warning" NoIcon="false">
             <MudStack Spacing="2">
-                <MudText><strong>Copy this key now — it will not be shown again.</strong></MudText>
+                <MudText><strong>Copy this key now â€” it will not be shown again.</strong></MudText>
                 <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
                     <MudTextField Value="_createdKeyValue" ReadOnly="true"
                                   Variant="Variant.Outlined"
@@ -99,8 +98,8 @@
                     @context.StatusDisplay
                 </MudChip>
             </MudTd>
-            <MudTd>@(string.IsNullOrWhiteSpace(context.Description) ? "—" : context.Description)</MudTd>
-            <MudTd Style="font-size:0.8rem">@(context.Created?.ToLocalTime().ToString("yyyy-MM-dd") ?? "—")</MudTd>
+            <MudTd>@(string.IsNullOrWhiteSpace(context.Description) ? "â€”" : context.Description)</MudTd>
+            <MudTd Style="font-size:0.8rem">@(context.Created?.ToLocalTime().ToString("yyyy-MM-dd") ?? "â€”")</MudTd>
             <MudTd>
                 <MudStack Row="true" Spacing="1">
                     @if (context.Capabilities?.Devices?.Create?.Reusable == true)
@@ -149,7 +148,7 @@
     {
         if (!Api.IsConfigured) { _status = "No API key configured."; return; }
         _busy = true;
-        _status = "Loading…";
+        _status = "Loadingâ€¦";
         try
         {
             var result = await Api.GetKeysAsync();

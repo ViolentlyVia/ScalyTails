@@ -1,8 +1,7 @@
-@page "/diagnostics"
-@rendermode InteractiveServer
+﻿@page "/diagnostics"
 @inject ITailscaleService Tailscale
 
-<PageTitle>Diagnostics — ScalyTails</PageTitle>
+<PageTitle>Diagnostics â€” ScalyTails</PageTitle>
 
 <MudStack Spacing="4">
 
@@ -171,11 +170,11 @@
     // NetCheck
     private bool _netCheckDone;
     private string _ncStatus = "";
-    private string _ncUdp = "—";
-    private string _ncIPv4 = "—";
-    private string _ncIPv6 = "—";
-    private string _ncNat = "—";
-    private string _ncDerp = "—";
+    private string _ncUdp = "â€”";
+    private string _ncIPv4 = "â€”";
+    private string _ncIPv6 = "â€”";
+    private string _ncNat = "â€”";
+    private string _ncDerp = "â€”";
     private List<DerpLatency> _derpLatencies = [];
 
     // Ping
@@ -214,12 +213,12 @@
     private async Task RunNetCheckAsync()
     {
         _busy = true;
-        _ncStatus = "Running…";
+        _ncStatus = "Runningâ€¦";
         try
         {
             var result = await Tailscale.NetCheckAsync();
             var json = string.IsNullOrWhiteSpace(result.Stdout) ? result.Stderr : result.Stdout;
-            if (string.IsNullOrWhiteSpace(json)) { _ncStatus = "No output — is Tailscale running?"; return; }
+            if (string.IsNullOrWhiteSpace(json)) { _ncStatus = "No output â€” is Tailscale running?"; return; }
 
             NetCheckResult? report;
             try { report = System.Text.Json.JsonSerializer.Deserialize<NetCheckResult>(json, _jsonOpts); }
@@ -227,9 +226,9 @@
 
             if (report is null) { _ncStatus = "Failed to parse netcheck output."; return; }
 
-            _ncUdp  = report.UDP     ? "✓ Available"          : "✗ Blocked";
-            _ncIPv4 = report.HasIPv4 ? $"✓ {report.PublicIPv4}" : "✗ Unavailable";
-            _ncIPv6 = report.HasIPv6 ? $"✓ {report.PublicIPv6}" : "✗ Unavailable";
+            _ncUdp  = report.UDP     ? "âœ“ Available"          : "âœ— Blocked";
+            _ncIPv4 = report.HasIPv4 ? $"âœ“ {report.PublicIPv4}" : "âœ— Unavailable";
+            _ncIPv6 = report.HasIPv6 ? $"âœ“ {report.PublicIPv6}" : "âœ— Unavailable";
             _ncNat  = report.MappingVariesByDestIP == true ? "Strict (varies by dest)" : "Easy";
             _ncDerp = report.PreferredDERP > 0 ? $"Region {report.PreferredDERP}" : "None";
             _derpLatencies = report.SortedDerpLatencies().Take(12).ToList();
@@ -244,7 +243,7 @@
         var host = _pingTarget.Trim();
         if (string.IsNullOrWhiteSpace(host)) return;
         _isPinging = true;
-        _pingOutput = "Pinging…";
+        _pingOutput = "Pingingâ€¦";
         try
         {
             var result = await Tailscale.PingAsync(host);
@@ -258,7 +257,7 @@
         var target = _whoisTarget.Trim();
         if (string.IsNullOrWhiteSpace(target)) return;
         _busy = true;
-        _whoisOutput = "Looking up…";
+        _whoisOutput = "Looking upâ€¦";
         try
         {
             var result = await Tailscale.WhoisAsync(target);
@@ -270,7 +269,7 @@
     private async Task CheckUpdateAsync()
     {
         _busy = true;
-        _updateStatus = "Checking…";
+        _updateStatus = "Checkingâ€¦";
         try
         {
             var result = await Tailscale.UpdateCheckAsync();
@@ -285,7 +284,7 @@
     private async Task ApplyUpdateAsync()
     {
         _busy = true;
-        _updateStatus = "Updating…";
+        _updateStatus = "Updatingâ€¦";
         try
         {
             var result = await Tailscale.UpdateApplyAsync();
@@ -298,7 +297,7 @@
     private async Task BugReportAsync()
     {
         _busy = true;
-        _bugReportId = "Generating…";
+        _bugReportId = "Generatingâ€¦";
         try
         {
             var result = await Tailscale.BugReportAsync();

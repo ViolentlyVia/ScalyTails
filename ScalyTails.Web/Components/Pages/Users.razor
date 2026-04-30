@@ -1,17 +1,87 @@
-@page "/users"
-@rendermode InteractiveServer
+﻿@page "/users"
 @inject ITailscaleApiService Api
-@inject IAppSettingsService AppSettings
 
-<PageTitle>Users — ScalyTails</PageTitle>
+<PageTitle>Users â€” ScalyTails</PageTitle>
 
-<MudText Typo="Typo.h5" Class="mb-4">Users</MudText>
+<MudStack Spacing="4">
 
-@if (!Api.IsConfigured)
-{
-    <MudAlert Severity="Severity.Warning">No API key configured. Go to Settings to add one.</MudAlert>
-}
-else
-{
-    <MudAlert Severity="Severity.Info">Users page — coming soon.</MudAlert>
+    <!-- Header -->
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.Group" Color="Color.Primary" />
+            <MudText Typo="Typo.h5">Users</MudText>
+            @if (!string.IsNullOrWhiteSpace(_status))
+            {
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">@_status</MudText>
+            }
+        </MudStack>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Refresh"
+                   OnClick="LoadAsync" Disabled="_busy">
+            Load
+        </MudButton>
+    </MudStack>
+
+    @if (!Api.IsConfigured)
+    {
+        <MudAlert Severity="Severity.Warning">
+            API key required. Go to <MudLink Href="/settings">Settings</MudLink> to add one.
+        </MudAlert>
+    }
+
+    <MudTable Items="_users" Dense="true" Hover="true" Loading="_busy"
+              SortLabel="Sort" Elevation="1">
+        <NoRecordsContent>
+            <MudText Class="mud-text-secondary pa-4">@(_loaded ? "No users found." : "Click Load to fetch users.")</MudText>
+        </NoRecordsContent>
+        <HeaderContent>
+            <MudTh>Online</MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<ApiUser, object>(u => u.LoginName)">Login</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<ApiUser, object>(u => u.DisplayName)">Name</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<ApiUser, object>(u => u.Role)">Role</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<ApiUser, object>(u => u.Status)">Status</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<ApiUser, object>(u => u.DeviceCount)">Devices</MudTableSortLabel></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>
+                <MudIcon Icon="@Icons.Material.Filled.Circle"
+                         Color="@(context.CurrentlyConnected ? Color.Success : Color.Default)"
+                         Size="Size.Small" />
+            </MudTd>
+            <MudTd Style="font-size:0.85rem">@context.LoginName</MudTd>
+            <MudTd>@context.DisplayName</MudTd>
+            <MudTd>
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@context.Role</MudChip>
+            </MudTd>
+            <MudTd>@context.Status</MudTd>
+            <MudTd>@context.DeviceCount</MudTd>
+        </RowTemplate>
+    </MudTable>
+
+</MudStack>
+
+@code {
+    private List<ApiUser> _users = [];
+    private bool _busy;
+    private bool _loaded;
+    private string _status = "";
+
+    private async Task LoadAsync()
+    {
+        if (!Api.IsConfigured) { _status = "No API key configured."; return; }
+        _busy = true;
+        _status = "Loadingâ€¦";
+        try
+        {
+            var result = await Api.GetUsersAsync();
+            if (!result.Success) { _status = $"Error: {result.Error}"; return; }
+            _users = (result.Data?.Users ?? [])
+                .OrderByDescending(u => u.CurrentlyConnected)
+                .ThenBy(u => u.LoginName)
+                .ToList();
+            _loaded = true;
+            _status = "";
+        }
+        finally { _busy = false; }
+    }
 }

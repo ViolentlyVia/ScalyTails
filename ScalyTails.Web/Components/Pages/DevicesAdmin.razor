@@ -1,17 +1,168 @@
-@page "/devices"
-@rendermode InteractiveServer
+﻿@page "/devices"
 @inject ITailscaleApiService Api
-@inject IAppSettingsService AppSettings
 
-<PageTitle>Devices — ScalyTails</PageTitle>
+<PageTitle>Devices â€” ScalyTails</PageTitle>
 
-<MudText Typo="Typo.h5" Class="mb-4">Devices</MudText>
+<MudStack Spacing="4">
 
-@if (!Api.IsConfigured)
-{
-    <MudAlert Severity="Severity.Warning">No API key configured. Go to Settings to add one.</MudAlert>
-}
-else
-{
-    <MudAlert Severity="Severity.Info">Devices page — coming soon.</MudAlert>
+    <!-- Header -->
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.Computer" Color="Color.Primary" />
+            <MudText Typo="Typo.h5">Devices</MudText>
+            @if (!string.IsNullOrWhiteSpace(_status))
+            {
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">@_status</MudText>
+            }
+        </MudStack>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Refresh"
+                   OnClick="LoadAsync" Disabled="_busy">
+            Load
+        </MudButton>
+    </MudStack>
+
+    @if (!Api.IsConfigured)
+    {
+        <MudAlert Severity="Severity.Warning">
+            API key required. Go to <MudLink Href="/settings">Settings</MudLink> to add one.
+        </MudAlert>
+    }
+
+    <!-- Filter -->
+    <MudTextField @bind-Value="_filter" Label="Filter by name, user, or IP"
+                  Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
+                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                  Immediate="true" OnKeyUp="ApplyFilter" OnClearButtonClick="ClearFilter" />
+
+    <MudTable Items="_filtered" Dense="true" Hover="true" Loading="_busy"
+              SortLabel="Sort" Elevation="1">
+        <NoRecordsContent>
+            <MudText Class="mud-text-secondary pa-4">@(_loaded ? "No devices match the filter." : "Click Load to fetch devices.")</MudText>
+        </NoRecordsContent>
+        <HeaderContent>
+            <MudTh><MudTableSortLabel SortBy="new Func<ApiDevice, object>(d => d.ShortName)">Name</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<ApiDevice, object>(d => d.User)">User</MudTableSortLabel></MudTh>
+            <MudTh>Address</MudTh>
+            <MudTh>Tags</MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<ApiDevice, object>(d => d.LastSeen ?? DateTime.MinValue)">Last Seen</MudTableSortLabel></MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                    @if (context.IsExpiringSoon)
+                    {
+                        <MudTooltip Text="Key expires soon">
+                            <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Warning" Size="Size.Small" />
+                        </MudTooltip>
+                    }
+                    <MudText>@context.ShortName</MudText>
+                </MudStack>
+            </MudTd>
+            <MudTd Style="font-size:0.85rem">@context.User</MudTd>
+            <MudTd Style="font-family:monospace;font-size:0.8rem">@context.PrimaryAddress</MudTd>
+            <MudTd Style="font-size:0.8rem">@(string.IsNullOrWhiteSpace(context.TagsDisplay) ? "â€”" : context.TagsDisplay)</MudTd>
+            <MudTd Style="font-size:0.8rem">@(context.LastSeen?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "â€”")</MudTd>
+            <MudTd>
+                <MudStack Row="true" Spacing="0">
+                    <MudTooltip Text="Authorize">
+                        <MudIconButton Icon="@Icons.Material.Filled.CheckCircle"
+                                       Color="Color.Success" Size="Size.Small" Disabled="_busy"
+                                       OnClick="() => AuthorizeAsync(context)" />
+                    </MudTooltip>
+                    <MudTooltip Text="Expire key">
+                        <MudIconButton Icon="@Icons.Material.Filled.Timer"
+                                       Color="Color.Warning" Size="Size.Small" Disabled="_busy"
+                                       OnClick="() => ExpireKeyAsync(context)" />
+                    </MudTooltip>
+                    <MudTooltip Text="Remove device">
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                       Color="Color.Error" Size="Size.Small" Disabled="_busy"
+                                       OnClick="() => DeleteAsync(context)" />
+                    </MudTooltip>
+                </MudStack>
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+
+</MudStack>
+
+@code {
+    private List<ApiDevice> _all = [];
+    private List<ApiDevice> _filtered = [];
+    private string _filter = "";
+    private bool _busy;
+    private bool _loaded;
+    private string _status = "";
+
+    private void ApplyFilter()
+    {
+        var f = _filter.Trim().ToLowerInvariant();
+        _filtered = string.IsNullOrEmpty(f)
+            ? _all
+            : _all.Where(d =>
+                d.ShortName.ToLowerInvariant().Contains(f) ||
+                d.User.ToLowerInvariant().Contains(f) ||
+                d.PrimaryAddress.Contains(f)).ToList();
+    }
+
+    private void ClearFilter()
+    {
+        _filter = "";
+        _filtered = _all;
+    }
+
+    private async Task LoadAsync()
+    {
+        if (!Api.IsConfigured) { _status = "No API key configured."; return; }
+        _busy = true;
+        _status = "Loadingâ€¦";
+        try
+        {
+            var result = await Api.GetDevicesAsync();
+            if (!result.Success) { _status = $"Error: {result.Error}"; return; }
+            _all = (result.Data?.Devices ?? []).OrderByDescending(d => d.LastSeen).ToList();
+            ApplyFilter();
+            _loaded = true;
+            _status = $"{_all.Count} devices.";
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task AuthorizeAsync(ApiDevice device)
+    {
+        _busy = true;
+        try
+        {
+            var ok = await Api.AuthorizeDeviceAsync(device.Id, true);
+            _status = ok ? $"Authorized {device.ShortName}." : "Authorization failed.";
+            if (ok) await LoadAsync();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task ExpireKeyAsync(ApiDevice device)
+    {
+        _busy = true;
+        try
+        {
+            var ok = await Api.ExpireDeviceKeyAsync(device.Id);
+            _status = ok ? $"Key expired for {device.ShortName}." : "Expire key failed.";
+            if (ok) await LoadAsync();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task DeleteAsync(ApiDevice device)
+    {
+        _busy = true;
+        try
+        {
+            var ok = await Api.DeleteDeviceAsync(device.Id);
+            _status = ok ? $"Removed {device.ShortName}." : "Remove failed.";
+            if (ok) await LoadAsync();
+        }
+        finally { _busy = false; }
+    }
 }

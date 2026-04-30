@@ -1,17 +1,234 @@
-@page "/dns"
-@rendermode InteractiveServer
+﻿@page "/dns"
 @inject ITailscaleApiService Api
-@inject IAppSettingsService AppSettings
 
-<PageTitle>DNS — ScalyTails</PageTitle>
+<PageTitle>DNS â€” ScalyTails</PageTitle>
 
-<MudText Typo="Typo.h5" Class="mb-4">DNS</MudText>
+<MudStack Spacing="4">
 
-@if (!Api.IsConfigured)
-{
-    <MudAlert Severity="Severity.Warning">No API key configured. Go to Settings to add one.</MudAlert>
-}
-else
-{
-    <MudAlert Severity="Severity.Info">DNS page — coming soon.</MudAlert>
+    <!-- Header -->
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.Dns" Color="Color.Primary" />
+            <MudText Typo="Typo.h5">DNS</MudText>
+            @if (!string.IsNullOrWhiteSpace(_status))
+            {
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">@_status</MudText>
+            }
+        </MudStack>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Refresh"
+                   OnClick="LoadAsync" Disabled="_busy">
+            Load
+        </MudButton>
+    </MudStack>
+
+    @if (!Api.IsConfigured)
+    {
+        <MudAlert Severity="Severity.Warning">
+            API key required. Go to <MudLink Href="/settings">Settings</MudLink> to add one.
+        </MudAlert>
+    }
+
+    <MudGrid Spacing="4">
+
+        <!-- MagicDNS -->
+        <MudItem xs="12">
+            <MudCard>
+                <MudCardContent>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                        <MudStack>
+                            <MudText Typo="Typo.subtitle1"><b>MagicDNS</b></MudText>
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                                Automatically registers device names as DNS entries on your tailnet.
+                            </MudText>
+                        </MudStack>
+                        <MudSwitch Value="_magicDns" Color="Color.Primary"
+                                   Disabled="_busy || !_loaded"
+                                   T="bool" ValueChanged="async v => await ToggleMagicDnsAsync(v)" />
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <!-- Nameservers -->
+        <MudItem xs="12" md="6">
+            <MudCard Style="height:100%">
+                <MudCardContent>
+                    <MudText Typo="Typo.overline" Class="mb-2">Nameservers</MudText>
+                    <MudStack Spacing="2" Class="mb-3">
+                        @foreach (var ns in _nameservers)
+                        {
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                <MudText Style="font-family:monospace;flex:1">@ns</MudText>
+                                <MudIconButton Icon="@Icons.Material.Filled.Close"
+                                               Size="Size.Small" Color="Color.Error"
+                                               Disabled="_busy"
+                                               OnClick="() => RemoveNameserver(ns)" />
+                            </MudStack>
+                        }
+                        @if (_nameservers.Count == 0 && _loaded)
+                        {
+                            <MudText Class="mud-text-secondary" Typo="Typo.body2">No nameservers configured.</MudText>
+                        }
+                    </MudStack>
+                    <MudStack Row="true" Spacing="2">
+                        <MudTextField @bind-Value="_newNs" Label="Add nameserver"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense"
+                                      Style="font-family:monospace;flex:1"
+                                      Disabled="_busy"
+                                      OnKeyDown="OnNsKeyDown" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Primary"
+                                       Disabled="_busy" OnClick="AddNameserver" />
+                    </MudStack>
+                </MudCardContent>
+                <MudCardActions>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                               Disabled="_busy || !_loaded" OnClick="ApplyNameserversAsync">
+                        Apply Nameservers
+                    </MudButton>
+                </MudCardActions>
+            </MudCard>
+        </MudItem>
+
+        <!-- Search paths -->
+        <MudItem xs="12" md="6">
+            <MudCard Style="height:100%">
+                <MudCardContent>
+                    <MudText Typo="Typo.overline" Class="mb-2">Search Paths</MudText>
+                    <MudStack Spacing="2" Class="mb-3">
+                        @foreach (var sp in _searchPaths)
+                        {
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                <MudText Style="font-family:monospace;flex:1">@sp</MudText>
+                                <MudIconButton Icon="@Icons.Material.Filled.Close"
+                                               Size="Size.Small" Color="Color.Error"
+                                               Disabled="_busy"
+                                               OnClick="() => RemoveSearchPath(sp)" />
+                            </MudStack>
+                        }
+                        @if (_searchPaths.Count == 0 && _loaded)
+                        {
+                            <MudText Class="mud-text-secondary" Typo="Typo.body2">No search paths configured.</MudText>
+                        }
+                    </MudStack>
+                    <MudStack Row="true" Spacing="2">
+                        <MudTextField @bind-Value="_newSp" Label="Add search path"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense"
+                                      Style="font-family:monospace;flex:1"
+                                      Disabled="_busy"
+                                      OnKeyDown="OnSpKeyDown" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Primary"
+                                       Disabled="_busy" OnClick="AddSearchPath" />
+                    </MudStack>
+                </MudCardContent>
+                <MudCardActions>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                               Disabled="_busy || !_loaded" OnClick="ApplySearchPathsAsync">
+                        Apply Search Paths
+                    </MudButton>
+                </MudCardActions>
+            </MudCard>
+        </MudItem>
+
+    </MudGrid>
+
+</MudStack>
+
+@code {
+    private List<string> _nameservers = [];
+    private List<string> _searchPaths = [];
+    private bool _magicDns;
+    private string _newNs = "";
+    private string _newSp = "";
+    private bool _busy;
+    private bool _loaded;
+    private string _status = "";
+
+    private async Task LoadAsync()
+    {
+        if (!Api.IsConfigured) { _status = "No API key configured."; return; }
+        _busy = true;
+        _status = "Loadingâ€¦";
+        try
+        {
+            var nsTask   = Api.GetNameserversAsync();
+            var spTask   = Api.GetSearchPathsAsync();
+            var prefTask = Api.GetDnsPreferencesAsync();
+            await Task.WhenAll(nsTask, spTask, prefTask);
+
+            var ns   = await nsTask;
+            var sp   = await spTask;
+            var pref = await prefTask;
+
+            if (!ns.Success || !sp.Success || !pref.Success)
+            {
+                _status = $"Error: {ns.Error ?? sp.Error ?? pref.Error}";
+                return;
+            }
+
+            _nameservers  = ns.Data?.Dns?.ToList() ?? [];
+            _searchPaths  = sp.Data?.SearchPaths?.ToList() ?? [];
+            _magicDns     = pref.Data?.MagicDNS ?? false;
+            _loaded = true;
+            _status = "";
+        }
+        finally { _busy = false; }
+    }
+
+    private void AddNameserver()
+    {
+        var v = _newNs.Trim();
+        if (string.IsNullOrWhiteSpace(v) || _nameservers.Contains(v)) return;
+        _nameservers.Add(v);
+        _newNs = "";
+    }
+
+    private void RemoveNameserver(string ns) => _nameservers.Remove(ns);
+
+    private void AddSearchPath()
+    {
+        var v = _newSp.Trim();
+        if (string.IsNullOrWhiteSpace(v) || _searchPaths.Contains(v)) return;
+        _searchPaths.Add(v);
+        _newSp = "";
+    }
+
+    private void RemoveSearchPath(string sp) => _searchPaths.Remove(sp);
+
+    private void OnNsKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") AddNameserver(); }
+    private void OnSpKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") AddSearchPath(); }
+
+    private async Task ToggleMagicDnsAsync(bool value)
+    {
+        _magicDns = value;
+        _busy = true;
+        try
+        {
+            var ok = await Api.SetMagicDnsAsync(_magicDns);
+            _status = ok ? $"MagicDNS {(_magicDns ? "enabled" : "disabled")}." : "Failed to update MagicDNS.";
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task ApplyNameserversAsync()
+    {
+        _busy = true;
+        try
+        {
+            var ok = await Api.SetNameserversAsync([.. _nameservers]);
+            _status = ok ? "Nameservers updated." : "Failed to update nameservers.";
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task ApplySearchPathsAsync()
+    {
+        _busy = true;
+        try
+        {
+            var ok = await Api.SetSearchPathsAsync([.. _searchPaths]);
+            _status = ok ? "Search paths updated." : "Failed to update search paths.";
+        }
+        finally { _busy = false; }
+    }
 }

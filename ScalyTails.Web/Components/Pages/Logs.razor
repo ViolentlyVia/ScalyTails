@@ -1,8 +1,7 @@
-@page "/logs"
-@rendermode InteractiveServer
+﻿@page "/logs"
 @inject ITailscaleApiService Api
 
-<PageTitle>Logs — ScalyTails</PageTitle>
+<PageTitle>Logs â€” ScalyTails</PageTitle>
 
 <MudStack Spacing="4">
 
@@ -63,11 +62,11 @@
         </HeaderContent>
         <RowTemplate>
             <MudTd Style="font-family:monospace;font-size:0.8rem">
-                @(context.Logged?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "—")
+                @(context.Logged?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "â€”")
             </MudTd>
-            <MudTd>@(context.Type ?? "—")</MudTd>
-            <MudTd Style="font-family:monospace;font-size:0.8rem">@(context.TrafficSrc ?? "—")</MudTd>
-            <MudTd Style="font-family:monospace;font-size:0.8rem">@(context.TrafficDst ?? "—")</MudTd>
+            <MudTd>@(context.Type ?? "â€”")</MudTd>
+            <MudTd Style="font-family:monospace;font-size:0.8rem">@(context.TrafficSrc ?? "â€”")</MudTd>
+            <MudTd Style="font-family:monospace;font-size:0.8rem">@(context.TrafficDst ?? "â€”")</MudTd>
         </RowTemplate>
     </MudTable>
 
@@ -85,7 +84,7 @@
     {
         if (!Api.IsConfigured) { _status = "No API key configured."; return; }
         _busy = true;
-        _status = "Loading…";
+        _status = "Loadingâ€¦";
         try
         {
             var start = DateTime.UtcNow.AddHours(-_hoursBack);
@@ -95,7 +94,7 @@
                 _status = $"Error: {result.Error}";
                 return;
             }
-            // Cap at 500 — rendering thousands of rows in a table is slow
+            // Cap at 500 â€” rendering thousands of rows in a table is slow
             _logs = (result.Data?.Logs ?? [])
                 .OrderByDescending(l => l.Logged)
                 .Take(500)
