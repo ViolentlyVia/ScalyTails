@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ScalyTails")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ed0bdf61ee87af25e813c31a53f5a3c69a7b7cfc")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+8dfbf31216d7fa5aedaec4cf0a7e97e0d7ffdac7")]
 [assembly: System.Reflection.AssemblyProductAttribute("ScalyTails")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ScalyTails")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
