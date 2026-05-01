@@ -1,8 +1,8 @@
-﻿@page "/settings"
+@page "/settings"
 @inject IAppSettingsService AppSettings
 @inject ITailscaleService Tailscale
 
-<PageTitle>Settings â€” ScalyTails</PageTitle>
+<PageTitle>Settings — ScalyTails</PageTitle>
 
 <MudStack Spacing="4">
 
@@ -99,6 +99,27 @@
             </MudCard>
         </MudItem>
 
+        <!-- App mode card -->
+        <MudItem xs="12" md="6">
+            <MudCard>
+                <MudCardContent>
+                    <MudText Typo="Typo.overline" Class="mb-3">App Mode</MudText>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                        <MudStack Spacing="1">
+                            <MudText Typo="Typo.subtitle2">@(_advancedMode ? "Advanced" : "Basic")</MudText>
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                                @(_advancedMode
+                                    ? "Full access to all Tailscale features and admin tools."
+                                    : "Simplified view with essential controls only.")
+                            </MudText>
+                        </MudStack>
+                        <MudSwitch Value="_advancedMode" Color="Color.Primary" T="bool"
+                                   ValueChanged="OnModeChanged" />
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
         <!-- Test output -->
         @if (!string.IsNullOrWhiteSpace(_testOutput))
         {
@@ -124,20 +145,30 @@
     private string _testOutput = "";
     private bool _busy;
     private bool _showKey;
+    private bool _advancedMode;
 
     private List<string> _accounts = [];
     private string _selectedAccount = "";
 
     protected override void OnInitialized()
     {
-        _apiKey  = AppSettings.Settings.ApiKey;
-        _tailnet = AppSettings.Settings.Tailnet;
+        _apiKey       = AppSettings.Settings.ApiKey;
+        _tailnet      = AppSettings.Settings.Tailnet;
+        _advancedMode = AppSettings.Settings.AdvancedMode;
+    }
+
+    private void OnModeChanged(bool value)
+    {
+        _advancedMode = value;
+        AppSettings.Settings.AdvancedMode = value;
+        AppSettings.Save();
+        _status = $"Switched to {(value ? "Advanced" : "Basic")} mode.";
     }
 
     private void OnApiKeyChanged()
     {
         _keyTypeWarning = _apiKey.Trim().StartsWith("tskey-auth-")
-            ? "This looks like a device auth key (tskey-auth-...). API features require an access token (tskey-api-...) â€” generate one at tailscale.com/admin/settings/keys."
+            ? "This looks like a device auth key (tskey-auth-...). API features require an access token (tskey-api-...) — generate one at tailscale.com/admin/settings/keys."
             : "";
     }
 
@@ -163,7 +194,7 @@
         var key = _apiKey.Trim();
         if (string.IsNullOrEmpty(key)) return;
         _busy = true;
-        _status = "Testingâ€¦";
+        _status = "Testing…";
         _testOutput = "";
         try
         {
@@ -182,7 +213,7 @@
                     req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(scheme, creds);
                     using var resp = await http.SendAsync(req);
                     var body = await resp.Content.ReadAsStringAsync();
-                    return ((int)resp.StatusCode, body.Length > 100 ? body[..100] + "â€¦" : body);
+                    return ((int)resp.StatusCode, body.Length > 100 ? body[..100] + "…" : body);
                 }
                 catch (Exception ex) { return (0, ex.Message); }
             }
@@ -232,7 +263,7 @@
     {
         if (string.IsNullOrWhiteSpace(_selectedAccount)) return;
         _busy = true;
-        _status = $"Switching to {_selectedAccount}â€¦";
+        _status = $"Switching to {_selectedAccount}…";
         try
         {
             var result = await Tailscale.SwitchAccountAsync(_selectedAccount);

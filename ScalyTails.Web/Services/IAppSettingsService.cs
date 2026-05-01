@@ -7,4 +7,5 @@ public interface IAppSettingsService
     AppSettings Settings { get; }
     void Save();
     bool HasApiKey { get; }
+    event Action? Changed;
 }

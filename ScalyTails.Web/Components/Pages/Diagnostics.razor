@@ -1,13 +1,17 @@
-﻿@page "/diagnostics"
+@page "/diagnostics"
 @inject ITailscaleService Tailscale
+@inject IAppSettingsService AppSettings
 
-<PageTitle>Diagnostics â€” ScalyTails</PageTitle>
+<PageTitle>@_pageTitle — ScalyTails</PageTitle>
 
 <MudStack Spacing="4">
 
     <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
         <MudIcon Icon="@Icons.Material.Filled.NetworkCheck" Color="Color.Primary" />
-        <MudText Typo="Typo.h5">Diagnostics</MudText>
+        <MudText Typo="Typo.h5">@_pageTitle</MudText>
+            <MudTooltip Text="Tailscale Documentation">
+                <MudIconButton Icon="@Icons.Material.Filled.HelpOutline" Href="https://tailscale.com/kb/1023/troubleshooting/" Target="_blank" Size="Size.Small" Color="Color.Default" />
+            </MudTooltip>
     </MudStack>
 
     <MudGrid Spacing="4">
@@ -65,7 +69,7 @@
                 <MudCardContent>
                     <MudText Typo="Typo.overline" Class="mb-3">Ping</MudText>
                     <MudStack Spacing="2">
-                        <MudSelect @bind-Value="_selectedPeer" Label="Select peer (optional)"
+                        <MudSelect Value="_selectedPeer" ValueChanged="OnPeerSelected" Label="Select peer (optional)"
                                    Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
                                    T="TailscalePeer">
                             @foreach (var p in _peers)
@@ -165,16 +169,18 @@
 </MudStack>
 
 @code {
+    private string _pageTitle => AppSettings.Settings.AdvancedMode ? "Diagnostics" : "Troubleshooting";
+
     private static readonly System.Text.Json.JsonSerializerOptions _jsonOpts = new() { PropertyNameCaseInsensitive = true };
 
     // NetCheck
     private bool _netCheckDone;
     private string _ncStatus = "";
-    private string _ncUdp = "â€”";
-    private string _ncIPv4 = "â€”";
-    private string _ncIPv6 = "â€”";
-    private string _ncNat = "â€”";
-    private string _ncDerp = "â€”";
+    private string _ncUdp = "—";
+    private string _ncIPv4 = "—";
+    private string _ncIPv6 = "—";
+    private string _ncNat = "—";
+    private string _ncDerp = "—";
     private List<DerpLatency> _derpLatencies = [];
 
     // Ping
@@ -213,12 +219,12 @@
     private async Task RunNetCheckAsync()
     {
         _busy = true;
-        _ncStatus = "Runningâ€¦";
+        _ncStatus = "Running…";
         try
         {
             var result = await Tailscale.NetCheckAsync();
             var json = string.IsNullOrWhiteSpace(result.Stdout) ? result.Stderr : result.Stdout;
-            if (string.IsNullOrWhiteSpace(json)) { _ncStatus = "No output â€” is Tailscale running?"; return; }
+            if (string.IsNullOrWhiteSpace(json)) { _ncStatus = "No output — is Tailscale running?"; return; }
 
             NetCheckResult? report;
             try { report = System.Text.Json.JsonSerializer.Deserialize<NetCheckResult>(json, _jsonOpts); }
@@ -226,9 +232,9 @@
 
             if (report is null) { _ncStatus = "Failed to parse netcheck output."; return; }
 
-            _ncUdp  = report.UDP     ? "âœ“ Available"          : "âœ— Blocked";
-            _ncIPv4 = report.HasIPv4 ? $"âœ“ {report.PublicIPv4}" : "âœ— Unavailable";
-            _ncIPv6 = report.HasIPv6 ? $"âœ“ {report.PublicIPv6}" : "âœ— Unavailable";
+            _ncUdp  = report.UDP     ? "✓ Available"          : "✗ Blocked";
+            _ncIPv4 = report.HasIPv4 ? $"✓ {report.PublicIPv4}" : "✗ Unavailable";
+            _ncIPv6 = report.HasIPv6 ? $"✓ {report.PublicIPv6}" : "✗ Unavailable";
             _ncNat  = report.MappingVariesByDestIP == true ? "Strict (varies by dest)" : "Easy";
             _ncDerp = report.PreferredDERP > 0 ? $"Region {report.PreferredDERP}" : "None";
             _derpLatencies = report.SortedDerpLatencies().Take(12).ToList();
@@ -243,7 +249,7 @@
         var host = _pingTarget.Trim();
         if (string.IsNullOrWhiteSpace(host)) return;
         _isPinging = true;
-        _pingOutput = "Pingingâ€¦";
+        _pingOutput = "Pinging…";
         try
         {
             var result = await Tailscale.PingAsync(host);
@@ -257,7 +263,7 @@
         var target = _whoisTarget.Trim();
         if (string.IsNullOrWhiteSpace(target)) return;
         _busy = true;
-        _whoisOutput = "Looking upâ€¦";
+        _whoisOutput = "Looking up…";
         try
         {
             var result = await Tailscale.WhoisAsync(target);
@@ -269,7 +275,7 @@
     private async Task CheckUpdateAsync()
     {
         _busy = true;
-        _updateStatus = "Checkingâ€¦";
+        _updateStatus = "Checking…";
         try
         {
             var result = await Tailscale.UpdateCheckAsync();
@@ -284,7 +290,7 @@
     private async Task ApplyUpdateAsync()
     {
         _busy = true;
-        _updateStatus = "Updatingâ€¦";
+        _updateStatus = "Updating…";
         try
         {
             var result = await Tailscale.UpdateApplyAsync();
@@ -297,7 +303,7 @@
     private async Task BugReportAsync()
     {
         _busy = true;
-        _bugReportId = "Generatingâ€¦";
+        _bugReportId = "Generating…";
         try
         {
             var result = await Tailscale.BugReportAsync();

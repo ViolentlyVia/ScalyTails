@@ -1,4 +1,4 @@
-﻿@page "/policy"
+@page "/policy"
 @using System.Text.Json
 @using System.Text.Json.Nodes
 @inject ITailscaleApiService Api
@@ -12,6 +12,9 @@
         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
             <MudIcon Icon="@Icons.Material.Filled.Policy" Color="Color.Primary" />
             <MudText Typo="Typo.h5">Policy</MudText>
+            <MudTooltip Text="Tailscale Documentation">
+                <MudIconButton Icon="@Icons.Material.Filled.HelpOutline" Href="https://tailscale.com/kb/1018/acls/" Target="_blank" Size="Size.Small" Color="Color.Default" />
+            </MudTooltip>
             @if (!string.IsNullOrWhiteSpace(_status))
             {
                 <MudText Typo="Typo.caption" Class="@(_statusError ? "mud-error-text" : "mud-text-secondary")">@_status</MudText>

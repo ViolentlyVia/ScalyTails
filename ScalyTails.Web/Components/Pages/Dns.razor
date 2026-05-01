@@ -1,7 +1,7 @@
-﻿@page "/dns"
+@page "/dns"
 @inject ITailscaleApiService Api
 
-<PageTitle>DNS â€” ScalyTails</PageTitle>
+<PageTitle>DNS — ScalyTails</PageTitle>
 
 <MudStack Spacing="4">
 
@@ -10,6 +10,9 @@
         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
             <MudIcon Icon="@Icons.Material.Filled.Dns" Color="Color.Primary" />
             <MudText Typo="Typo.h5">DNS</MudText>
+            <MudTooltip Text="Tailscale Documentation">
+                <MudIconButton Icon="@Icons.Material.Filled.HelpOutline" Href="https://tailscale.com/kb/1054/dns/" Target="_blank" Size="Size.Small" Color="Color.Default" />
+            </MudTooltip>
             @if (!string.IsNullOrWhiteSpace(_status))
             {
                 <MudText Typo="Typo.caption" Class="mud-text-secondary">@_status</MudText>
@@ -144,11 +147,16 @@
     private bool _loaded;
     private string _status = "";
 
+    protected override async Task OnInitializedAsync()
+    {
+        if (Api.IsConfigured) await LoadAsync();
+    }
+
     private async Task LoadAsync()
     {
         if (!Api.IsConfigured) { _status = "No API key configured."; return; }
         _busy = true;
-        _status = "Loadingâ€¦";
+        _status = "Loading…";
         try
         {
             var nsTask   = Api.GetNameserversAsync();

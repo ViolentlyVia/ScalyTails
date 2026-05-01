@@ -13,6 +13,7 @@ public class AppSettingsService : IAppSettingsService
 
     public AppSettings Settings { get; private set; } = new();
     public bool HasApiKey => !string.IsNullOrWhiteSpace(Settings.ApiKey);
+    public event Action? Changed;
 
     public AppSettingsService() => Load();
 
@@ -35,6 +36,7 @@ public class AppSettingsService : IAppSettingsService
         {
             Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
             File.WriteAllText(SettingsPath, JsonSerializer.Serialize(Settings, new JsonSerializerOptions { WriteIndented = true }));
+            Changed?.Invoke();
         }
         catch { }
         // Silently swallow: a disk write failure (permissions, full disk) is not fatal.

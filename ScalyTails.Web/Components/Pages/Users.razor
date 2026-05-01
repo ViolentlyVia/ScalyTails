@@ -1,4 +1,4 @@
-﻿@page "/users"
+@page "/users"
 @inject ITailscaleApiService Api
 @inject IJSRuntime JS
 
@@ -11,6 +11,9 @@
         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
             <MudIcon Icon="@Icons.Material.Filled.Group" Color="Color.Primary" />
             <MudText Typo="Typo.h5">Users</MudText>
+            <MudTooltip Text="Tailscale Documentation">
+                <MudIconButton Icon="@Icons.Material.Filled.HelpOutline" Href="https://tailscale.com/kb/1064/users-and-identity/" Target="_blank" Size="Size.Small" Color="Color.Default" />
+            </MudTooltip>
             @if (!string.IsNullOrWhiteSpace(_status))
             {
                 <MudText Typo="Typo.caption" Class="mud-text-secondary">@_status</MudText>

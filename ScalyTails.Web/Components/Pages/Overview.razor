@@ -1,15 +1,19 @@
-﻿@page "/"
+@page "/"
 @inject ITailscaleService Tailscale
+@inject IAppSettingsService AppSettings
 @implements IAsyncDisposable
 
-<PageTitle>Overview — ScalyTails</PageTitle>
+<PageTitle>@(AppSettings.Settings.AdvancedMode ? "Overview" : "Dashboard") — ScalyTails</PageTitle>
 
 <MudStack Spacing="4">
 
     <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
             <MudIcon Icon="@Icons.Material.Filled.Hub" Color="Color.Primary" />
-            <MudText Typo="Typo.h5">Overview</MudText>
+            <MudText Typo="Typo.h5">@(AppSettings.Settings.AdvancedMode ? "Overview" : "Dashboard")</MudText>
+            <MudTooltip Text="Tailscale Documentation">
+                <MudIconButton Icon="@Icons.Material.Filled.HelpOutline" Href="https://tailscale.com/kb/1151/what-is-tailscale/" Target="_blank" Size="Size.Small" Color="Color.Default" />
+            </MudTooltip>
             <MudText Typo="Typo.caption" Class="mud-text-secondary">auto-refreshes every 5 s</MudText>
         </MudStack>
         <MudButton Variant="Variant.Filled" Color="Color.Primary"

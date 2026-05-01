@@ -1,14 +1,18 @@
-﻿@page "/exit-nodes"
+@page "/exit-nodes"
 @inject ITailscaleService Tailscale
+@inject IAppSettingsService AppSettings
 
-<PageTitle>Exit Nodes — ScalyTails</PageTitle>
+<PageTitle>@(AppSettings.Settings.AdvancedMode ? "Exit Nodes" : "VPN Exit Points") — ScalyTails</PageTitle>
 
 <MudStack Spacing="4">
 
     <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
             <MudIcon Icon="@Icons.Material.Filled.ExitToApp" Color="Color.Primary" />
-            <MudText Typo="Typo.h5">Exit Nodes</MudText>
+            <MudText Typo="Typo.h5">@(AppSettings.Settings.AdvancedMode ? "Exit Nodes" : "VPN Exit Points")</MudText>
+            <MudTooltip Text="Tailscale Documentation">
+                <MudIconButton Icon="@Icons.Material.Filled.HelpOutline" Href="https://tailscale.com/kb/1103/exit-nodes/" Target="_blank" Size="Size.Small" Color="Color.Default" />
+            </MudTooltip>
             @if (!string.IsNullOrWhiteSpace(_status))
             {
                 <MudText Typo="Typo.caption" Class="mud-text-secondary">@_status</MudText>

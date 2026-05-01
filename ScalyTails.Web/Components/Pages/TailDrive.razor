@@ -1,14 +1,18 @@
-﻿@page "/taildrive"
+@page "/taildrive"
 @inject ITailscaleService Tailscale
+@inject IAppSettingsService AppSettings
 
-<PageTitle>TailDrive â€” ScalyTails</PageTitle>
+<PageTitle>@_pageTitle — ScalyTails</PageTitle>
 
 <MudStack Spacing="4">
 
     <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
             <MudIcon Icon="@Icons.Material.Filled.Folder" Color="Color.Primary" />
-            <MudText Typo="Typo.h5">TailDrive</MudText>
+            <MudText Typo="Typo.h5">@_pageTitle</MudText>
+            <MudTooltip Text="Tailscale Documentation">
+                <MudIconButton Icon="@Icons.Material.Filled.HelpOutline" Href="https://tailscale.com/kb/1369/taildrive/" Target="_blank" Size="Size.Small" Color="Color.Default" />
+            </MudTooltip>
             @if (!string.IsNullOrWhiteSpace(_status))
             {
                 <MudText Typo="Typo.caption" Class="mud-text-secondary">@_status</MudText>
@@ -76,6 +80,8 @@
 </MudStack>
 
 @code {
+    private string _pageTitle => AppSettings.Settings.AdvancedMode ? "TailDrive" : "File Sharing";
+
     private record DriveShare(string Name, string Path);
     private List<DriveShare> _shares = [];
     private string _newName = "";

@@ -125,6 +125,14 @@ public class TailscalePeer
     [JsonPropertyName("AdvertisedRoutes")]
     public List<string>? AdvertisedRoutes { get; set; }
 
+    // AllowedIPs contains /32 (IPv4) and /128 (IPv6) entries for the peer's own
+    // Tailscale IPs, plus any subnet routes it is currently routing. Filtering
+    // those out leaves only the subnet routes.
+    public List<string> SubnetRoutes =>
+        AllowedIPs?
+            .Where(ip => !ip.EndsWith("/32") && !ip.EndsWith("/128"))
+            .ToList() ?? [];
+
     public string PrimaryIP => TailscaleIPs?.FirstOrDefault() ?? "";
     public string ShortDNS => DNSName.TrimEnd('.');
     public string DisplayName => string.IsNullOrEmpty(HostName) ? ShortDNS : HostName;

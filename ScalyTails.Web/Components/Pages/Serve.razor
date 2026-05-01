@@ -1,14 +1,18 @@
-﻿@page "/serve"
+@page "/serve"
 @inject ITailscaleService Tailscale
+@inject IAppSettingsService AppSettings
 
-<PageTitle>Serve &amp; Funnel â€” ScalyTails</PageTitle>
+<PageTitle>@_pageTitle — ScalyTails</PageTitle>
 
 <MudStack Spacing="4">
 
     <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
             <MudIcon Icon="@Icons.Material.Filled.Cloud" Color="Color.Primary" />
-            <MudText Typo="Typo.h5">Serve &amp; Funnel</MudText>
+            <MudText Typo="Typo.h5">@_pageTitle</MudText>
+            <MudTooltip Text="Tailscale Documentation">
+                <MudIconButton Icon="@Icons.Material.Filled.HelpOutline" Href="https://tailscale.com/kb/1312/serve/" Target="_blank" Size="Size.Small" Color="Color.Default" />
+            </MudTooltip>
             @if (!string.IsNullOrWhiteSpace(_status))
             {
                 <MudText Typo="Typo.caption" Class="mud-text-secondary">@_status</MudText>
@@ -96,6 +100,8 @@
 </MudStack>
 
 @code {
+    private string _pageTitle => AppSettings.Settings.AdvancedMode ? "Serve & Funnel" : "Share Services";
+
     private record ServeEntry(string Protocol, string Port, string Target);
     private List<ServeEntry> _entries = [];
     private string _protocol = "HTTPS";

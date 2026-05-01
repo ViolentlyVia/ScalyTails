@@ -1,7 +1,7 @@
-﻿@page "/devices"
+@page "/devices"
 @inject ITailscaleApiService Api
 
-<PageTitle>Devices â€” ScalyTails</PageTitle>
+<PageTitle>Devices — ScalyTails</PageTitle>
 
 <MudStack Spacing="4">
 
@@ -10,6 +10,9 @@
         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
             <MudIcon Icon="@Icons.Material.Filled.Computer" Color="Color.Primary" />
             <MudText Typo="Typo.h5">Devices</MudText>
+            <MudTooltip Text="Tailscale Documentation">
+                <MudIconButton Icon="@Icons.Material.Filled.HelpOutline" Href="https://tailscale.com/kb/1136/tailnet/" Target="_blank" Size="Size.Small" Color="Color.Default" />
+            </MudTooltip>
             @if (!string.IsNullOrWhiteSpace(_status))
             {
                 <MudText Typo="Typo.caption" Class="mud-text-secondary">@_status</MudText>
@@ -62,8 +65,8 @@
             </MudTd>
             <MudTd Style="font-size:0.85rem">@context.User</MudTd>
             <MudTd Style="font-family:monospace;font-size:0.8rem">@context.PrimaryAddress</MudTd>
-            <MudTd Style="font-size:0.8rem">@(string.IsNullOrWhiteSpace(context.TagsDisplay) ? "â€”" : context.TagsDisplay)</MudTd>
-            <MudTd Style="font-size:0.8rem">@(context.LastSeen?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "â€”")</MudTd>
+            <MudTd Style="font-size:0.8rem">@(string.IsNullOrWhiteSpace(context.TagsDisplay) ? "—" : context.TagsDisplay)</MudTd>
+            <MudTd Style="font-size:0.8rem">@(context.LastSeen?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "—")</MudTd>
             <MudTd>
                 <MudStack Row="true" Spacing="0">
                     <MudTooltip Text="Authorize">
@@ -96,6 +99,11 @@
     private bool _loaded;
     private string _status = "";
 
+    protected override async Task OnInitializedAsync()
+    {
+        if (Api.IsConfigured) await LoadAsync();
+    }
+
     private void ApplyFilter()
     {
         var f = _filter.Trim().ToLowerInvariant();
@@ -117,7 +125,7 @@
     {
         if (!Api.IsConfigured) { _status = "No API key configured."; return; }
         _busy = true;
-        _status = "Loadingâ€¦";
+        _status = "Loading…";
         try
         {
             var result = await Api.GetDevicesAsync();

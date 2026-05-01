@@ -1,14 +1,18 @@
-﻿@page "/peers"
+@page "/peers"
 @inject ITailscaleService Tailscale
+@inject IAppSettingsService AppSettings
 
-<PageTitle>Peers — ScalyTails</PageTitle>
+<PageTitle>@(AppSettings.Settings.AdvancedMode ? "Peers" : "My Devices") — ScalyTails</PageTitle>
 
 <MudStack Spacing="4">
 
     <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
             <MudIcon Icon="@Icons.Material.Filled.Devices" Color="Color.Primary" />
-            <MudText Typo="Typo.h5">Peers</MudText>
+            <MudText Typo="Typo.h5">@(AppSettings.Settings.AdvancedMode ? "Peers" : "My Devices")</MudText>
+            <MudTooltip Text="Tailscale Documentation">
+                <MudIconButton Icon="@Icons.Material.Filled.HelpOutline" Href="https://tailscale.com/kb/1136/tailnet/" Target="_blank" Size="Size.Small" Color="Color.Default" />
+            </MudTooltip>
             @if (!string.IsNullOrWhiteSpace(_status))
             {
                 <MudText Typo="Typo.caption" Class="mud-text-secondary">@_status</MudText>

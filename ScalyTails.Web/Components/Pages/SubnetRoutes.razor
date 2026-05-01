@@ -1,14 +1,18 @@
-﻿@page "/subnet-routes"
+@page "/subnet-routes"
 @inject ITailscaleService Tailscale
+@inject IAppSettingsService AppSettings
 
-<PageTitle>Subnet Routes — ScalyTails</PageTitle>
+<PageTitle>@(AppSettings.Settings.AdvancedMode ? "Subnet Routes" : "Network Sharing") — ScalyTails</PageTitle>
 
 <MudStack Spacing="4">
 
     <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
             <MudIcon Icon="@Icons.Material.Filled.AccountTree" Color="Color.Primary" />
-            <MudText Typo="Typo.h5">Subnet Routes</MudText>
+            <MudText Typo="Typo.h5">@(AppSettings.Settings.AdvancedMode ? "Subnet Routes" : "Network Sharing")</MudText>
+            <MudTooltip Text="Tailscale Documentation">
+                <MudIconButton Icon="@Icons.Material.Filled.HelpOutline" Href="https://tailscale.com/kb/1019/subnets/" Target="_blank" Size="Size.Small" Color="Color.Default" />
+            </MudTooltip>
             @if (!string.IsNullOrWhiteSpace(_status))
             {
                 <MudText Typo="Typo.caption" Class="mud-text-secondary">@_status</MudText>
@@ -146,8 +150,8 @@
             _acceptRoutes = prefs?.RouteAll ?? false;
 
             _peerRoutes = status?.AllPeers
-                .Where(p => p.AdvertisedRoutes is { Count: > 0 })
-                .Select(p => new PeerRoute(p.DisplayName, p.AdvertisedRoutes!))
+                .Where(p => p.SubnetRoutes.Count > 0)
+                .Select(p => new PeerRoute(p.DisplayName, p.SubnetRoutes))
                 .OrderBy(p => p.PeerName)
                 .ToList() ?? [];
 
