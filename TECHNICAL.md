@@ -1,537 +1,426 @@
-# ScalyTails — Technical Manual
+# ScalyTails — Technical Reference
 
-A developer reference for understanding, extending, and maintaining the codebase.
+Developer reference for understanding, extending, and building the codebase.
 
 ---
 
 ## Table of Contents
 
-1. [Project Overview](#1-project-overview)
-2. [Tech Stack](#2-tech-stack)
-3. [Directory Structure](#3-directory-structure)
-4. [Architecture](#4-architecture)
-5. [Service Layer](#5-service-layer)
-6. [MVVM Pattern](#6-mvvm-pattern)
-7. [Navigation System](#7-navigation-system)
-8. [Key Patterns and Conventions](#8-key-patterns-and-conventions)
-9. [WPF Converters](#9-wpf-converters)
-10. [Models Reference](#10-models-reference)
-11. [Adding a New Page](#11-adding-a-new-page)
-12. [Known Constraints and Gotchas](#12-known-constraints-and-gotchas)
-13. [Build and Run](#13-build-and-run)
+1. [Tech Stack](#1-tech-stack)
+2. [Project Structure](#2-project-structure)
+3. [Architecture](#3-architecture)
+4. [Service Layer](#4-service-layer)
+5. [Models Reference](#5-models-reference)
+6. [Settings Persistence](#6-settings-persistence)
+7. [Basic / Advanced Mode](#7-basic--advanced-mode)
+8. [Adding a New Page](#8-adding-a-new-page)
+9. [Known Constraints and Gotchas](#9-known-constraints-and-gotchas)
+10. [Build and Publish](#10-build-and-publish)
 
 ---
 
-## 1. Project Overview
+## 1. Tech Stack
 
-ScalyTails is a Windows desktop GUI for the Tailscale VPN client. It wraps two separate Tailscale interfaces:
-
-- **Tailscale CLI** (`tailscale.exe`) — for the local node: connection state, peers, exit nodes, subnet routes, SSH, Taildrive, Serve/Funnel, and diagnostics. No authentication required; the CLI uses the local daemon socket.
-- **Tailscale REST Management API** (`api.tailscale.com/api/v2`) — for the tailnet admin: devices, users, DNS, ACL policy, network logs, and auth keys. Requires a `tskey-api-` access token.
-
-This split is fundamental to the design. Pages that only need local state (Overview, Peers, Exit Nodes, etc.) work offline with no credentials. Pages that need tailnet-wide admin data (Devices, DNS, Policy, etc.) require an API key configured in Settings.
-
----
-
-## 2. Tech Stack
-
-| Component | Library / Version |
+| Layer | Technology |
 | --- | --- |
-| UI Framework | WPF (.NET 8, `net8.0-windows`) |
-| MVVM helpers | CommunityToolkit.Mvvm 8.3.2 |
-| UI theme | MaterialDesignThemes 5.1.0 (MDI icon set) |
-| System tray | Hardcodet.NotifyIcon.Wpf 2.0.1 |
-| Serialization | System.Text.Json (built-in) |
-| HTTP client | System.Net.Http.HttpClient (built-in) |
+| Runtime | .NET 10 |
+| Web framework | Blazor Server (Interactive Server render mode) |
+| UI components | MudBlazor 9.x |
+| CLI integration | `System.Diagnostics.Process` wrapping `tailscale.exe` |
+| API integration | `System.Net.Http.HttpClient` against `api.tailscale.com/api/v2` |
+| Settings storage | JSON file via `System.Text.Json` |
+| Hosting | Kestrel on `http://0.0.0.0:5169` |
+
+Blazor Server is used rather than Blazor WebAssembly because the app needs direct access to the host machine's `tailscale` CLI binary and the local filesystem, which WASM cannot provide.
 
 ---
 
-## 3. Directory Structure
+## 2. Project Structure
 
-```text
+```
 ScalyTails/
-├── App.xaml / App.xaml.cs          Application entry point, service wiring, tray icon
-├── MainWindow.xaml / .xaml.cs      Shell window: nav sidebar + content frame
-│
-├── Models/
-│   ├── AppSettings.cs              Persisted user settings (API key, tailnet name)
-│   ├── ApiModels.cs                REST API response/request types
-│   ├── ApiResult.cs                Generic result wrapper for API calls
-│   ├── CliResult.cs                Wrapper for CLI subprocess output
-│   ├── NetCheckResult.cs           JSON model for `tailscale netcheck --format json`
-│   ├── ServeStatus.cs              JSON model for `tailscale serve status --json`
-│   ├── TailscalePrefs.cs           JSON model for `tailscale debug prefs`
-│   └── TailscaleStatus.cs          JSON model for `tailscale status --json --peers`
-│
-├── Services/
-│   ├── IAppSettingsService.cs      Interface for persisting app settings
-│   ├── AppSettingsService.cs       Reads/writes %APPDATA%\ScalyTails\settings.json
-│   ├── IApiKeyAware.cs             Interface for ViewModels that display API key status
-│   ├── ITailscaleService.cs        Interface for all CLI operations
-│   ├── TailscaleService.cs         Implements CLI ops by spawning tailscale.exe subprocesses
-│   ├── ITailscaleApiService.cs     Interface for all REST API operations
-│   └── TailscaleApiService.cs      Implements REST API calls via HttpClient
-│
-├── ViewModels/
-│   ├── MainViewModel.cs            Drives Overview, Peers, Exit Nodes, Routes, Serve pages
-│   ├── DiagnosticsViewModel.cs     Drives Diagnostics page (netcheck, ping, whois, etc.)
-│   ├── SettingsViewModel.cs        Drives Settings page (API key, account switching)
-│   ├── DnsViewModel.cs             Drives DNS page
-│   ├── DevicesAdminViewModel.cs    Drives Devices admin page
-│   ├── UsersViewModel.cs           Drives Users page
-│   ├── PolicyViewModel.cs          Drives Policy/ACL editor page
-│   ├── LogsViewModel.cs            Drives Network Logs page
-│   ├── KeysViewModel.cs            Drives Auth Keys page
-│   ├── TailDriveViewModel.cs       Drives TailDrive share management page
-│   ├── PeerViewModel.cs            Per-row model for the peers DataGrid
-│   ├── ExitNodeViewModel.cs        Per-row model for the exit nodes list
-│   ├── ServeEntryViewModel.cs      Per-row model for the serve entries list
-│   └── SubnetRouteViewModel.cs     Per-row model for the subnet routes list
-│
-├── Views/
-│   ├── OverviewPage.xaml/.cs       Connection status, quick toggles
-│   ├── PeersPage.xaml/.cs          Peer list, SSH, Taildrop file send
-│   ├── ExitNodesPage.xaml/.cs      Exit node selector
-│   ├── SubnetRoutesPage.xaml/.cs   Advertised routes editor
-│   ├── ServePage.xaml/.cs          Serve / Funnel configuration
-│   ├── DiagnosticsPage.xaml/.cs    NetCheck, Ping peer, Whois, Update, Bug report
-│   ├── TailDrivePage.xaml/.cs      TailDrive share list and management
-│   ├── SettingsPage.xaml/.cs       API key input, account switching
-│   ├── DnsPage.xaml/.cs            Nameservers, search paths, MagicDNS toggle
-│   ├── DevicesAdminPage.xaml/.cs   Device list with authorize/expire/delete
-│   ├── UsersPage.xaml/.cs          Tailnet user list
-│   ├── PolicyPage.xaml/.cs         ACL policy JSON editor
-│   ├── LogsPage.xaml/.cs           Network flow log viewer
-│   └── KeysPage.xaml/.cs           Auth key list and creation form
-│
-└── Converters/
-    ├── BoolToVisibilityConverter.cs  bool/int/string → Visibility (with Invert option)
-    ├── BoolToColorConverter.cs       bool → Brush (configurable true/false colors)
-    ├── BoolToStringConverter.cs      bool → string (configurable true/false labels)
-    ├── BoolToIconConverter.cs        bool → PackIconKind (check/close circle)
-    ├── InverseBoolConverter.cs       bool → !bool (for IsEnabled bindings)
-    └── BytesConverter.cs             long (bytes) → human-readable string (KB/MB/GB)
+├── ScalyTails.Web/
+│   ├── Components/
+│   │   ├── App.razor              — root component, sets render mode
+│   │   ├── Routes.razor           — router
+│   │   ├── _Imports.razor         — global using directives for all .razor files
+│   │   ├── Layout/
+│   │   │   ├── MainLayout.razor   — shell: sidebar + content area
+│   │   │   └── NavMenu.razor      — mode-aware navigation sidebar
+│   │   └── Pages/
+│   │       ├── Overview.razor
+│   │       ├── Peers.razor
+│   │       ├── ExitNodes.razor
+│   │       ├── SubnetRoutes.razor
+│   │       ├── Serve.razor
+│   │       ├── Diagnostics.razor
+│   │       ├── TailDrive.razor
+│   │       ├── Settings.razor
+│   │       ├── Dns.razor
+│   │       ├── DevicesAdmin.razor
+│   │       ├── Users.razor
+│   │       ├── Policy.razor
+│   │       ├── Logs.razor
+│   │       └── Keys.razor
+│   ├── Models/
+│   │   ├── TailscaleStatus.cs     — CLI status JSON shape
+│   │   ├── TailscalePrefs.cs      — CLI prefs JSON shape
+│   │   ├── ServeStatus.cs         — CLI serve status JSON shape
+│   │   ├── NetCheckResult.cs      — CLI netcheck JSON shape
+│   │   ├── ApiModels.cs           — REST API response models
+│   │   ├── ApiResult.cs           — generic API result wrapper
+│   │   ├── CliResult.cs           — CLI process result wrapper
+│   │   └── AppSettings.cs         — persisted user settings
+│   ├── Services/
+│   │   ├── ITailscaleService.cs   — interface: CLI operations
+│   │   ├── TailscaleService.cs    — implementation: spawns tailscale.exe
+│   │   ├── ITailscaleApiService.cs — interface: REST API operations
+│   │   ├── TailscaleApiService.cs  — implementation: HttpClient
+│   │   ├── IAppSettingsService.cs  — interface: settings + Changed event
+│   │   ├── AppSettingsService.cs   — implementation: JSON persistence
+│   │   └── IApiKeyAware.cs        — marker interface (unused; reserved)
+│   ├── wwwroot/                   — static assets
+│   ├── Program.cs                 — DI setup, Kestrel config, middleware
+│   └── ScalyTails.Web.csproj
+├── .vscode/
+│   ├── launch.json                — VS Code debug config (Blazor)
+│   └── tasks.json                 — build + watch tasks
+├── README.md
+├── TECHNICAL.md
+└── ScalyTails.slnx
 ```
 
 ---
 
-## 4. Architecture
+## 3. Architecture
 
-```text
-┌────────────────────���────────────────────────────────────────────┐
-│  App.xaml.cs                                                     │
-│  Service construction + tray icon                                │
-└────────────────────────┬────────────────────────────────────────┘
-                         │
-           ┌─────────────▼──────────────┐
-           │  MainWindow.xaml.cs         │
-           │  Nav sidebar + PageHost     │
-           └──────┬──────────────┬───────┘
-                  │              │
-     ┌────────────▼───┐   ┌──────▼─────────────────┐
-     │ CLI-backed pages│   │ API-backed pages         │
-     │ (MainViewModel) │   │ (own ViewModel per page) │
-     └────────┬────────┘   └──────┬──────────────────┘
-              │                   │
-   ┌──────────▼──────┐   ┌────────▼──────────────┐
-   │ ITailscaleService│   │ ITailscaleApiService   │
-   │ (CLI subprocess) │   │ (HttpClient REST)      │
-   └──────────────────┘   └────────────────────────┘
+```
+Browser  ←—— WebSocket (SignalR) ——→  Blazor Server
+                                           │
+                           ┌───────────────┼───────────────────┐
+                           ▼               ▼                   ▼
+                   TailscaleService  TailscaleApiService  AppSettingsService
+                           │               │                   │
+                    tailscale.exe    api.tailscale.com    settings.json
+                    (local CLI)      (REST, HTTPS)        (local disk)
 ```
 
-### Dual service design
+All three services are registered as **singletons** in `Program.cs`. This means a single `HttpClient` and a single settings instance are shared across all concurrent Blazor circuits (browser tabs). This is intentional — settings mutations from one tab are immediately visible to others.
 
-Pages are split into two groups with different data sources and lifecycles:
-
-**CLI-backed** (no credentials needed, always available if Tailscale is installed):
-Overview, Peers, Exit Nodes, Subnet Routes, Serve/Funnel, Diagnostics, TailDrive, Settings (account switching portion)
-
-Overview, Peers, Exit Nodes, Subnet Routes, and Serve/Funnel share a single `MainViewModel` which polls `tailscale status`, `tailscale debug prefs`, and `tailscale serve status` every 5 seconds via a background `PeriodicTimer`. Diagnostics, TailDrive, and Settings each have their own dedicated ViewModel.
-
-**API-backed** (requires `tskey-api-` access token):
-Devices, Users, DNS, Policy, Logs, Keys
-
-Each of these has its own ViewModel that only loads data when the user navigates to the page (on-demand, not on a timer). They all implement `IApiKeyAware` to react to key changes.
+Blazor Server uses a persistent SignalR connection between the browser and the server. UI events (button clicks, form input) travel over that connection and are handled server-side, which is why direct CLI and filesystem access work without any additional API layer.
 
 ---
 
-## 5. Service Layer
+## 4. Service Layer
 
-### TailscaleService (CLI)
+### ITailscaleService / TailscaleService
 
-Wraps `tailscale.exe` by spawning subprocesses with `Process`. All operations follow the same pattern:
+Wraps the `tailscale` CLI binary. Every method spawns a short-lived process, captures stdout/stderr, and returns a `CliResult`.
 
-```csharp
-private async Task<CliResult> RunAsync(string arguments, CancellationToken ct = default)
-```
+**CLI discovery:** Checks `C:\Program Files\Tailscale\tailscale.exe`, then `C:\Program Files (x86)\Tailscale\tailscale.exe`, then falls back to `tailscale` on `PATH`.
 
-Returns a `CliResult` record with `Stdout`, `Stderr`, `ExitCode`, and a computed `Success` property (`ExitCode == 0`).
-
-**Finding tailscale.exe:** `TailscaleService` checks standard install paths (`Program Files`, `Program Files (x86)`) and falls back to PATH resolution. `IsTailscaleInstalled` is false if all lookups fail.
-
-**Netcheck output quirk:** Some Tailscale CLI versions write `netcheck --format json` output to stderr rather than stdout. `DiagnosticsViewModel` checks both and uses whichever is non-empty.
-
-### TailscaleApiService (REST)
-
-Uses a long-lived `HttpClient`. Auth is set **per-request** rather than as a default header so that saving a new API key in Settings takes effect on the very next call without restarting.
+**Key methods:**
 
 ```csharp
-// HTTP Basic auth: key as username, empty password — matches the official Tailscale Go client
-var creds = Convert.ToBase64String(Encoding.ASCII.GetBytes(_settings.Settings.ApiKey + ":"));
-request.Headers.Authorization = new AuthenticationHeaderValue("Basic", creds);
+Task<TailscaleStatus?> GetStatusAsync()      // tailscale status --json
+Task<TailscalePrefs?>  GetPrefsAsync()       // tailscale prefs --json (undocumented)
+Task<CliResult>        ConnectAsync()        // tailscale up
+Task<CliResult>        DisconnectAsync()     // tailscale down
+Task<CliResult>        SetExitNodeAsync(string? nodeIP, bool allowLan)
+Task<CliResult>        AdvertiseRoutesAsync(IEnumerable<string> routes)
+Task<CliResult>        NetCheckAsync()       // tailscale netcheck --format=json
+Task<CliResult>        PingAsync(string host, int count = 3)
+Task<CliResult>        WhoisAsync(string ip)
+Task<ServeStatus?>     GetServeStatusAsync() // tailscale serve status --json
+Task<CliResult>        AddServeAsync(string protocol, int port, string target)
+Task<CliResult>        DriveShareAsync(string name, string path)
+Task<CliResult>        SwitchAccountAsync(string account)
 ```
 
-**Important:** Tailscale has two distinct key types:
+**CliResult:**
 
-- `tskey-auth-...` — device enrollment keys (used with `tailscale up --auth-key`). Will always return HTTP 401 against the REST API.
-- `tskey-api-...` — API access tokens (used with this app). Generated at tailscale.com/admin/settings/keys → "Generate access token".
+```csharp
+public record CliResult(bool Success, string Stdout, string Stderr);
+```
 
-### ApiResult\<T\>
+`Success` is true when the process exits with code 0.
 
-All GET methods on `ITailscaleApiService` return `ApiResult<T>` instead of `T?`. This carries both the data and the error reason, so ViewModels can surface specific messages (e.g. "HTTP 401 — invalid or expired API key") rather than silently showing empty lists.
+### ITailscaleApiService / TailscaleApiService
+
+Wraps the [Tailscale REST API](https://tailscale.com/api) (`api.tailscale.com/api/v2`). Uses Bearer token auth with the API key from settings. The tailnet name (also from settings, defaulting to `"-"` which means the authenticated tailnet) is embedded in request URLs.
+
+**IsConfigured** returns `true` when both `ApiKey` and `Tailnet` are non-empty in settings. Pages gate their Load calls behind this check and show a warning alert when it is false.
+
+**ApiResult wrapper:**
 
 ```csharp
 public class ApiResult<T>
 {
-    public T?     Data    { get; init; }
-    public bool   Success { get; init; }
-    public string Error   { get; init; } = "";
-
-    public static ApiResult<T> Ok(T data)         => new() { Data = data, Success = true };
-    public static ApiResult<T> Fail(string error)  => new() { Success = false, Error = error };
+    public bool    Success { get; init; }
+    public T?      Data    { get; init; }
+    public string? Error   { get; init; }
 }
 ```
 
-Mutation methods (POST/DELETE) return plain `bool` — success or failure is enough.
+### IAppSettingsService / AppSettingsService
 
-### AppSettingsService
+Loads and saves `AppSettings` as JSON. Also fires a `Changed` event whenever settings are saved, which `NavMenu` subscribes to in order to re-render without a page reload.
 
-Persists `AppSettings` as JSON to `%APPDATA%\ScalyTails\settings.json`. Load and Save both silently swallow exceptions — a corrupted settings file falls back to defaults rather than crashing, and a failed write (permissions, full disk) is non-fatal.
+**Storage path:**
+- Windows: `%APPDATA%\ScalyTails\settings.json`
+- Linux: `~/.config/ScalyTails/settings.json`
 
----
-
-## 6. MVVM Pattern
-
-The project uses **CommunityToolkit.Mvvm** for source-generated boilerplate.
-
-### Observable properties
+**Interface:**
 
 ```csharp
-[ObservableProperty] private string _statusMessage = "";
-// Generates: public string StatusMessage { get => ...; set { ... OnPropertyChanged(); } }
-```
-
-### Relay commands
-
-```csharp
-[RelayCommand]
-private async Task RefreshAsync(CancellationToken ct = default) { ... }
-// Generates: public IAsyncRelayCommand RefreshCommand { get; }
-```
-
-The generated command name is the method name with `Async` stripped and `Command` appended. `PingAsync` → `PingCommand`, `RefreshAsync` → `RefreshCommand`.
-
-### Partial property callbacks
-
-CommunityToolkit generates a `partial void OnXxxChanged(T value)` hook for every `[ObservableProperty]`. Implement it to react to value changes without manually overriding the setter:
-
-```csharp
-partial void OnSelectedPeerChanged(TailscalePeer? value)
+public interface IAppSettingsService
 {
-    if (value is not null)
-        PingTarget = value.PrimaryIP;
+    AppSettings Settings { get; }
+    void Save();
+    event Action? Changed;
 }
 ```
 
-This is used throughout the project for filter text (DevicesAdminViewModel), API key warnings (SettingsViewModel), dirty tracking (PolicyViewModel), and the peer ping selection (DiagnosticsViewModel).
-
-### IApiKeyAware
-
-ViewModels for API-backed pages implement this interface:
+**Reactive NavMenu pattern:**
 
 ```csharp
-public interface IApiKeyAware
+// NavMenu.razor
+@implements IDisposable
+@inject IAppSettingsService AppSettings
+
+@code {
+    protected override void OnInitialized()
+        => AppSettings.Changed += OnSettingsChanged;
+
+    private void OnSettingsChanged()
+        => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+        => AppSettings.Changed -= OnSettingsChanged;
+}
+```
+
+---
+
+## 5. Models Reference
+
+### AppSettings
+
+```csharp
+public class AppSettings
 {
-    void OnApiKeyChanged();
+    public string ApiKey      { get; set; } = "";
+    public string Tailnet     { get; set; } = "-";  // "-" = authenticated tailnet
+    public bool   AdvancedMode { get; set; } = false;
 }
 ```
 
-`MainWindow.NavButton_Click` calls `OnApiKeyChanged()` whenever the user navigates to an API page. Implementations simply raise `PropertyChanged` for `HasApiKey`, which updates the "No API key configured" banner in the XAML without requiring a full data reload.
+### TailscaleStatus
 
----
-
-## 7. Navigation System
-
-Navigation is flat — a `RadioButton` sidebar on the left, a `ContentControl` (`PageHost`) in the center.
-
-- All 14 page instances are pre-allocated in `MainWindow` fields. Switching pages just sets `PageHost.Content`.
-- Page instances retain their `DataContext` and scroll state for the lifetime of the window.
-- No frame history, no URI routing. The `RadioButton.Tag` string is the routing key (see `NavButton_Click` in `MainWindow.xaml.cs`).
-- Five of the 14 pages share `MainViewModel` as their `DataContext` (Overview, Peers, Exit Nodes, Subnet Routes, Serve). The remaining nine have dedicated ViewModels.
-
----
-
-## 8. Key Patterns and Conventions
-
-### Background refresh loop
-
-`MainViewModel` polls Tailscale every 5 seconds using `PeriodicTimer`:
+Deserialised from `tailscale status --json`. Key computed properties:
 
 ```csharp
-_refreshTimer = new PeriodicTimer(TimeSpan.FromSeconds(5));
-while (await _refreshTimer.WaitForNextTickAsync(ct))
-    await RefreshAsync(ct);
+bool IsRunning    // BackendState is "Running" or "Starting"
+bool NeedsLogin   // BackendState == "NeedsLogin"
+IEnumerable<TailscalePeer> AllPeers   // flattens the Peer dictionary
+TailscalePeer? ActiveExitNode         // peer where ExitNode == true
 ```
 
-`PeriodicTimer` skips missed ticks — if a refresh takes longer than 5 seconds it doesn't queue up overlapping calls.
+### TailscalePeer
 
-### Dispatcher marshalling
-
-The 5-second refresh fires three parallel CLI calls (`Task.WhenAll`), then applies the results on the UI thread:
+Notable computed properties:
 
 ```csharp
-await Application.Current.Dispatcher.InvokeAsync(() =>
-    ApplyStatus(status, prefs, serve));
+string PrimaryIP      // first entry in TailscaleIPs
+string DisplayName    // HostName, falling back to trimmed DNSName
+List<string> SubnetRoutes  // AllowedIPs filtered to exclude /32 and /128
 ```
 
-This is required because `ObservableCollection` writes must happen on the WPF dispatcher thread.
+`SubnetRoutes` is derived rather than directly from the JSON because `tailscale status --json` does not emit an `AdvertisedRoutes` field for peers. Instead, `AllowedIPs` contains both the peer's own Tailscale IPs (as `/32`/`/128`) and any subnet routes it is currently routing — filtering out the host routes leaves the subnets.
 
-### RunBusyAsync helper
-
-All mutating commands in `MainViewModel` go through a single helper that sets `IsBusy`, runs the action, shows errors, and triggers a status refresh:
+### CliResult
 
 ```csharp
-private async Task RunBusyAsync(string message, Func<CancellationToken, Task<CliResult>> action)
+public record CliResult(bool Success, string Stdout, string Stderr);
 ```
 
-`IsBusy` disables UI controls via `IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}"`.
-
-### PasswordBox binding
-
-WPF's `PasswordBox` does not support data binding for security reasons. The workaround in `SettingsPage.xaml.cs` wires the `PasswordChanged` event to manually push the value into the ViewModel:
+### ApiResult\<T\>
 
 ```csharp
-private void ApiKeyBox_PasswordChanged(object sender, RoutedEventArgs e)
+public class ApiResult<T>
 {
-    if (DataContext is SettingsViewModel vm && sender is PasswordBox pb)
-        vm.ApiKey = pb.Password;
+    public bool    Success { get; init; }
+    public T?      Data    { get; init; }
+    public string? Error   { get; init; }
 }
 ```
 
-### Shutdown mode
+---
 
-`App.xaml` uses `ShutdownMode="OnExplicitShutdown"`. The default `OnMainWindowClose` would kill the process when the window is hidden to tray. `Shutdown()` is only called from the tray Exit menu item.
+## 6. Settings Persistence
 
-### SSH terminal cascade
+`AppSettingsService` reads the JSON file on construction and holds the deserialized `AppSettings` object in memory for the lifetime of the process. `Save()` serializes it back to disk and fires `Changed`.
 
-`MainViewModel.SshToPeer` tries to open a terminal in preference order: Windows Terminal (`wt.exe`) → PowerShell → `cmd.exe`. This ensures SSH works regardless of which terminal the user has installed.
+Because it is a singleton, all Blazor circuits share the same in-memory settings. There is no locking — concurrent `Save()` calls from multiple browser tabs could theoretically race, but in practice this does not occur because settings mutations are user-driven one at a time.
 
 ---
 
-## 9. WPF Converters
+## 7. Basic / Advanced Mode
 
-All converters live in `ScalyTails.Converters` and are declared as resources in individual page XAML files.
+`AppSettings.AdvancedMode` (default `false`) controls:
 
-| Converter | Input | Output | Notes |
-| --- | --- | --- | --- |
-| `BoolToVisibilityConverter` | bool / int / string | Visibility | `Invert="True"` for inverse. Handles `string.Length` bindings. |
-| `BoolToColorConverter` | bool | Brush | Configure `TrueColor` / `FalseColor` in XAML. |
-| `BoolToStringConverter` | bool | string | Configure `TrueValue` / `FalseValue` in XAML. |
-| `BoolToIconConverter` | bool | PackIconKind | CheckCircle vs CloseCircle. |
-| `InverseBoolConverter` | bool | bool | Used to enable buttons when `IsBusy` is false. |
-| `BytesConverter` | long | string | Formats bytes as B / KB / MB / GB. |
-
-**Important:** `BoolToVisibilityConverter` intentionally handles `int` and `string` values in addition to `bool`. XAML binds to properties like `{Binding SomeText.Length}` which is an `int`, not a `bool`. The pattern `value is true` only matches boolean literals — integers always evaluate to hidden without this handling.
-
----
-
-## 10. Models Reference
-
-### CLI models
-
-| Model | Source command | Notes |
-| --- | --- | --- |
-| `TailscaleStatus` | `tailscale status --json --peers` | `AllPeers` guards the null `Peer` dict when disconnected |
-| `TailscalePrefs` | `tailscale debug prefs` | Includes route acceptance, SSH, shields-up, exit node prefs |
-| `ServeStatus` | `tailscale serve status --json` | `ToEntries()` flattens nested Web/TCP dicts to a bindable list |
-| `NetCheckResult` | `tailscale netcheck --format json` | `RegionLatency` values are nanoseconds (Go `time.Duration`); `SortedDerpLatencies()` converts to ms |
-| `CliResult` | All subprocess calls | Record: `Stdout`, `Stderr`, `ExitCode`. `Success = ExitCode == 0`. `Output` returns whichever stream is non-empty. |
-
-### API models (ApiModels.cs)
-
-All classes map directly to the [Tailscale REST API v2](https://tailscale.com/api) JSON schema. Key computed properties:
-
-- `ApiDevice.IsExpiringSoon` — true when key expires within 14 days
-- `ApiDevice.TagsDisplay` — strips mandatory `tag:` prefix for cleaner UI display
-- `ApiAuthKey.IsActive` — false if revoked, invalid, or past expiry date
-- `CreateKeyRequest.ExpirySeconds` — defaults to 7,776,000 (90 days), the API maximum
-
----
-
-## 11. Adding a New Page
-
-Follow this checklist to add a page end-to-end.
-
-### Step 1 — Create the ViewModel
-
-For a CLI-backed page with no API dependency, add a class in `ViewModels/`:
+- **NavMenu.razor** — renders different link sets depending on the mode. Subscribes to `IAppSettingsService.Changed` so it updates instantly without navigation.
+- **Page titles and headings** — each affected page reads `AppSettings.Settings.AdvancedMode` to pick between technical and friendly names. Example:
 
 ```csharp
-public partial class MyFeatureViewModel : ObservableObject
+// SubnetRoutes.razor
+private string _pageTitle =>
+    AppSettings.Settings.AdvancedMode ? "Subnet Routes" : "Network Sharing";
+```
+
+- **Visibility** — API-backed pages (`/dns`, `/devices`, `/users`, `/policy`, `/logs`, `/keys`) are only linked from NavMenu in Advanced mode. Their routes still exist and respond; they are simply not surfaced in Basic mode.
+
+---
+
+## 8. Adding a New Page
+
+1. **Create the Razor component** in `ScalyTails.Web/Components/Pages/MyPage.razor`:
+
+```razor
+@page "/my-page"
+@inject ITailscaleService Tailscale
+@inject IAppSettingsService AppSettings
+
+<PageTitle>My Page — ScalyTails</PageTitle>
+
+<MudStack Spacing="4">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+        <MudIcon Icon="@Icons.Material.Filled.SomeIcon" Color="Color.Primary" />
+        <MudText Typo="Typo.h5">My Page</MudText>
+        <MudTooltip Text="Tailscale Documentation">
+            <MudIconButton Icon="@Icons.Material.Filled.HelpOutline"
+                           Href="https://tailscale.com/kb/XXXX/my-feature/"
+                           Target="_blank" Size="Size.Small" Color="Color.Default" />
+        </MudTooltip>
+    </MudStack>
+    <!-- content -->
+</MudStack>
+
+@code {
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync() { /* ... */ }
+}
+```
+
+2. **Add a nav link** in `NavMenu.razor` under the appropriate section (LOCAL or ADMIN):
+
+```razor
+<MudNavLink Href="/my-page" Icon="@Icons.Material.Filled.SomeIcon">
+    My Page
+</MudNavLink>
+```
+
+3. If the page needs an API key, gate the load call:
+
+```csharp
+protected override async Task OnInitializedAsync()
 {
-    private readonly ITailscaleService _tailscale;
-
-    [ObservableProperty] private bool _isBusy;
-    [ObservableProperty] private string _statusMessage = "";
-
-    public MyFeatureViewModel(ITailscaleService tailscale)
-    {
-        _tailscale = tailscale;
-    }
-
-    [RelayCommand]
-    private async Task RefreshAsync()
-    {
-        IsBusy = true;
-        try { /* ... */ }
-        finally { IsBusy = false; }
-    }
+    if (Api.IsConfigured) await LoadAsync();
 }
 ```
 
-For an API-backed page, depend on `ITailscaleApiService` and implement `IApiKeyAware`:
+And add a warning alert in the markup:
 
-```csharp
-public partial class MyFeatureViewModel : ObservableObject, IApiKeyAware
+```razor
+@if (!Api.IsConfigured)
 {
-    private readonly ITailscaleApiService _api;
-
-    public bool HasApiKey => _api.IsConfigured;
-    public void OnApiKeyChanged() => OnPropertyChanged(nameof(HasApiKey));
-
-    // ...
+    <MudAlert Severity="Severity.Warning">
+        API key required. Go to <MudLink Href="/settings">Settings</MudLink> to add one.
+    </MudAlert>
 }
 ```
-
-### Step 2 — Create the View
-
-Add `Views/MyFeaturePage.xaml` (WPF UserControl) and its `.xaml.cs` code-behind. The code-behind for most pages is a single line:
-
-```csharp
-public partial class MyFeaturePage : UserControl
-{
-    public MyFeaturePage() => InitializeComponent();
-}
-```
-
-### Step 3 — Wire up in MainWindow
-
-In `MainWindow.xaml.cs`:
-
-```csharp
-// Field declaration
-private readonly MyFeaturePage _myFeaturePage = new();
-
-// In constructor
-var myFeatureVm = new MyFeatureViewModel(cliService);  // or apiService
-_myFeaturePage.DataContext = myFeatureVm;
-
-// In NavButton_Click switch
-"MyFeature" => _myFeaturePage,
-```
-
-### Step 4 — Add the nav button
-
-In `MainWindow.xaml`, add a `RadioButton` to the appropriate nav section (CLI pages at top, API pages in "ADMIN" section):
-
-```xml
-<RadioButton Tag="MyFeature" GroupName="Nav"
-             Style="{StaticResource NavButton}"
-             Click="NavButton_Click">
-    <StackPanel Orientation="Horizontal">
-        <materialDesign:PackIcon Kind="SomeIcon" Width="18" Height="18" .../>
-        <TextBlock Text="My Feature" .../>
-    </StackPanel>
-</RadioButton>
-```
-
-**Icon note:** Use only icon names from the [MDI icon set](https://pictogrammers.com/library/mdi/). Names like `PackIconKind.NetworkCheck` that exist in other icon families will throw a `XamlParseException` at runtime.
 
 ---
 
-## 12. Known Constraints and Gotchas
+## 9. Known Constraints and Gotchas
 
-### MaterialDesign icon names
+### File encoding
 
-Only MDI icons are bundled. If an icon name is wrong, the app crashes at startup with `XamlParseException: {"Cannot create instance of 'PackIconKind'..."}`. Always verify icon names at pictogrammers.com/library/mdi before using them.
+Some Razor files in this project have historically had UTF-8 mojibake — characters like `…` (U+2026), `—` (U+2014), `✓` (U+2713), and `✗` (U+2717) stored as multi-byte Windows-1252 sequences inside a UTF-8 file. When editing these files, always use an editor that reads and writes UTF-8 without BOM. Avoid tools that silently re-encode.
 
-### PasswordBox data binding
+If you see garbled characters like `â€¦` or `âœ"` in the running app, the source file has been double-encoded. Fix with a script that reads as UTF-8 and replaces the mojibake codepoint sequences with the correct Unicode characters.
 
-`PasswordBox` does not support `{Binding}` for its `Password` property. Use the `PasswordChanged` event in code-behind to push the value into the ViewModel (see `SettingsPage.xaml.cs`).
+### TailscalePeer.SubnetRoutes derivation
 
-### Tailscale key types
+`tailscale status --json` does not include an `AdvertisedRoutes` field for peers. Subnet routes must be derived from `AllowedIPs` by filtering out `/32` (IPv4) and `/128` (IPv6) host entries. See `TailscaleStatus.cs`.
 
-Two distinct key types exist:
+### Blazor Server and long-running CLI calls
 
-- `tskey-auth-...` — device auth keys (for enrolling devices, NOT for this app)
-- `tskey-api-...` — API access tokens (required for all admin pages)
+`TailscaleService` methods spawn a new process per call. Long-running commands (ping, update apply) block the async call for their duration. There is no cancellation plumbed through yet — if a user navigates away, the process runs to completion in the background before the result is discarded.
 
-Using an auth key returns HTTP 401 with `{"message":"API token invalid"}` on every API call. The Settings page shows a red warning when it detects the `tskey-auth-` prefix.
+### Port and binding
 
-### ObservableCollection thread safety
+The app binds to `http://0.0.0.0:5169` (all interfaces, not just localhost). This is intentional so other devices on the Tailnet can reach the dashboard. Do not expose port 5169 on untrusted networks — Tailscale's network-level access controls are expected to gate access.
 
-`ObservableCollection` raises `CollectionChanged` on the thread that modifies it. WPF will throw if this happens off the dispatcher thread. Always marshal collection writes via `Application.Current.Dispatcher.InvokeAsync(...)` when coming from a background task.
+### Tailnet name default
 
-### IsBusy vs IsPinging
+The API tailnet name defaults to `"-"`, which the Tailscale API interprets as the tailnet of the authenticated key. Users only need to change this if they manage multiple tailnets with a single key.
 
-`MainViewModel.IsBusy` disables most controls. `DiagnosticsViewModel.IsPinging` is a separate flag used only for the Ping button, because the main `IsBusy` would block unrelated controls on the same page while a ping is in flight.
+### MudBlazor switch binding
 
-### PeriodicTimer and cancellation
-
-`RefreshLoopAsync` catches `OperationCanceledException` and exits silently — this is the normal shutdown path when `StopRefresh()` cancels the token. Do not rethrow it.
-
-### Settings persistence path
-
-Settings are stored in `%APPDATA%\ScalyTails\settings.json` (e.g. `C:\Users\<user>\AppData\Roaming\ScalyTails\settings.json`). They survive app reinstalls. Deleting this file resets the app to a clean state.
-
-### Network flow logs
-
-The Logs page requires the "Network flow logging" feature to be enabled in the Tailscale admin console (tailscale.com/admin/logs) and may require a paid plan. HTTP 403/404 from this endpoint is expected on free plans.
+Do not use `@bind-Value` and `ValueChanged` together on `MudSwitch` — MudBlazor does not support both simultaneously. Use `Value` (one-way) with `ValueChanged` only.
 
 ---
 
-## 13. Build and Run
+## 10. Build and Publish
 
-### Prerequisites
-
-- .NET 8 SDK
-- Tailscale for Windows installed (the app is functional without it, but all CLI features are disabled)
-
-### Run in development
+### Development
 
 ```sh
+cd ScalyTails.Web
 dotnet run
 ```
 
-### Publish self-contained executable
+Or use `dotnet watch` for hot reload:
 
-```powershell
-dotnet publish --configuration Release --runtime win-x64 --self-contained true `
-    --output publish/
+```sh
+dotnet watch --project ScalyTails.Web/ScalyTails.Web.csproj
 ```
 
-### Build installer (requires Inno Setup 6)
+### Release — Windows (self-contained, single file)
 
 ```powershell
-.\build-installer.ps1
+dotnet publish ScalyTails.Web/ScalyTails.Web.csproj `
+    --configuration Release `
+    --runtime win-x64 `
+    --self-contained true `
+    -p:PublishSingleFile=true `
+    -p:IncludeNativeLibrariesForSelfExtract=true `
+    --output ./release-output
 ```
 
-Produces `dist\ScalyTailsSetup.exe`. The installer places the app in `%ProgramFiles%\ScalyTails` and creates Start Menu shortcuts.
+### Release — Linux (self-contained, single file)
 
-### Stopping a running instance before rebuild
+```sh
+dotnet publish ScalyTails.Web/ScalyTails.Web.csproj \
+    --configuration Release \
+    --runtime linux-x64 \
+    --self-contained true \
+    -p:PublishSingleFile=true \
+    -p:IncludeNativeLibrariesForSelfExtract=true \
+    --output ./release-output
+```
 
-If the app is running in the tray and you try to build, MSBuild will fail with MSB3027 (file locked). Kill the process first:
+### Debian package
 
-```powershell
-Stop-Process -Name ScalyTails -Force -ErrorAction SilentlyContinue
+Build the Linux binary first, then use `dpkg-deb` to package it. The package installs files to `/usr/share/scalytails-web/`, creates a `scalytails` system user, and registers a systemd service (`scalytails-web.service`). See the `postinst` and `prerm` scripts embedded in the release workflow for the full setup/teardown logic.
+
+### Version bump
+
+Update `<Version>`, `<AssemblyVersion>`, and `<FileVersion>` in `ScalyTails.Web/ScalyTails.Web.csproj`, then tag the commit:
+
+```sh
+git tag v0.x.0
+git push origin v0.x.0
 ```

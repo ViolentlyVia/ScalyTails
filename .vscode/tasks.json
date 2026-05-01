@@ -7,9 +7,20 @@
       "type": "process",
       "args": [
         "build",
-        "${workspaceFolder}/ScalyTails.csproj",
+        "${workspaceFolder}/ScalyTails.Web/ScalyTails.Web.csproj",
         "/property:GenerateFullPaths=true",
         "/consoleloggerparameters:NoSummary"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "watch",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "watch",
+        "--project",
+        "${workspaceFolder}/ScalyTails.Web/ScalyTails.Web.csproj"
       ],
       "problemMatcher": "$msCompile"
     }
